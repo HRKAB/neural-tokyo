@@ -87,7 +87,7 @@ html,body{width:100%;height:100%;overflow:hidden;background:#0a0c10}
 <script type="module">
 import * as THREE from 'three';
 import { TilesRenderer } from '3d-tiles-renderer';
-import { GoogleCloudAuthPlugin, GLTFExtensionsPlugin, TilesFadePlugin } from '3d-tiles-renderer/plugins';
+import { GoogleCloudAuthPlugin, GLTFExtensionsPlugin } from '3d-tiles-renderer/plugins';
 import { DRACOLoader } from 'three/addons/loaders/DRACOLoader.js';
 import { computeBoundsTree, disposeBoundsTree, acceleratedRaycast } from 'three-mesh-bvh';
 
@@ -128,14 +128,18 @@ draco.setDecoderPath('https://cdn.jsdelivr.net/npm/three@0.170.0/examples/jsm/li
 const tiles = new TilesRenderer();
 tiles.registerPlugin(new GoogleCloudAuthPlugin({ apiToken: KEY, autoRefreshToken: true }));
 tiles.registerPlugin(new GLTFExtensionsPlugin({ dracoLoader: draco }));
-tiles.registerPlugin(new TilesFadePlugin());
 tiles.setLatLonToYUp(LAT0*DEG, LON0*DEG);
 tiles.setCamera(camera);
 tiles.setResolutionFromRenderer(camera, renderer);
 tiles.errorTarget = qs.has('hq') ? 6 : 10;
 scene.add(tiles.group);
 tiles.addEventListener('load-model', e => {
-  e.scene.traverse(o => { if(o.isMesh && o.geometry && !o.geometry.boundsTree){ try{ o.geometry.computeBoundsTree(); }catch(_){} } });
+  queueMicrotask(() => {
+    try{
+      const sc = e.scene || (e.tile && e.tile.cached && e.tile.cached.scene);
+      if(sc) sc.traverse(o => { if(o.isMesh && o.geometry && !o.geometry.boundsTree){ try{ o.geometry.computeBoundsTree(); }catch(_){} } });
+    }catch(_){}
+  });
 });
 
 /* ============ utils ============ */
