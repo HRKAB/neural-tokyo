@@ -1,0 +1,95 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>NEURAL TOKYO — LIVE (Photorealistic Shibuya)</title>
+<script type="importmap">
+{"imports":{
+  "three":"https://cdn.jsdelivr.net/npm/three@0.170.0/build/three.module.js",
+  "three/addons/":"https://cdn.jsdelivr.net/npm/three@0.170.0/examples/jsm/",
+  "3d-tiles-renderer":"https://cdn.jsdelivr.net/npm/3d-tiles-renderer@0.4.28/build/index.js",
+  "3d-tiles-renderer/plugins":"https://cdn.jsdelivr.net/npm/3d-tiles-renderer@0.4.28/build/index.plugins.js",
+  "3d-tiles-renderer/three":"https://cdn.jsdelivr.net/npm/3d-tiles-renderer@0.4.28/build/index.three.js",
+  "3d-tiles-renderer/core":"https://cdn.jsdelivr.net/npm/3d-tiles-renderer@0.4.28/build/index.core.js"
+}}
+</script>
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+html,body{width:100%;height:100%;overflow:hidden;background:#0a0c10}
+#hud{position:fixed;top:14px;left:18px;z-index:10;font-family:"JetBrains Mono",ui-monospace,monospace;color:#EEE;font-size:12px;line-height:1.7;text-shadow:0 1px 3px rgba(0,0,0,0.8)}
+#hud b{color:#AD002D;letter-spacing:0.2em;font-size:14px}
+#attr{position:fixed;bottom:10px;right:14px;z-index:10;font-family:sans-serif;color:#fff;font-size:11px;text-shadow:0 1px 2px #000}
+#err{position:fixed;bottom:14px;left:18px;z-index:10;font-family:monospace;color:#ff7080;font-size:11px;max-width:70vw;white-space:pre-wrap}
+</style>
+</head>
+<body>
+<div id="hud"><b>NEURAL TOKYO</b> / LIVE — real Shibuya (Google Photorealistic 3D Tiles)<br><span id="stat">loading…</span></div>
+<div id="attr">© Google</div>
+<div id="err"></div>
+<script type="module">
+import * as THREE from 'three';
+import { TilesRenderer } from '3d-tiles-renderer';
+import { GoogleCloudAuthPlugin, GLTFExtensionsPlugin, ReorientationPlugin } from '3d-tiles-renderer/plugins';
+import { DRACOLoader } from 'three/addons/loaders/DRACOLoader.js';
+
+const qs = new URLSearchParams(location.search);
+const KEY = qs.get('key');
+const err = m => { document.getElementById('err').textContent += m + '\n'; };
+if(!KEY){ err('missing ?key=API_KEY'); throw new Error('no key'); }
+addEventListener('error', e => err('ERR: ' + (e.message || e.reason)));
+addEventListener('unhandledrejection', e => err('REJ: ' + (e.reason && e.reason.message || e.reason)));
+
+const renderer = new THREE.WebGLRenderer({ antialias: true });
+renderer.setSize(innerWidth, innerHeight);
+renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
+document.body.appendChild(renderer.domElement);
+
+const scene = new THREE.Scene();
+scene.background = new THREE.Color(0x86a4c8); // hazy day sky placeholder
+const camera = new THREE.PerspectiveCamera(50, innerWidth/innerHeight, 1, 20000);
+camera.position.set(300, 300, 300);
+camera.lookAt(0, 40, 0);
+
+const DEG = Math.PI/180;
+const draco = new DRACOLoader();
+draco.setDecoderPath('https://cdn.jsdelivr.net/npm/three@0.170.0/examples/jsm/libs/draco/gltf/');
+
+const tiles = new TilesRenderer();
+tiles.registerPlugin(new GoogleCloudAuthPlugin({ apiToken: KEY, autoRefreshToken: true }));
+tiles.registerPlugin(new GLTFExtensionsPlugin({ dracoLoader: draco }));
+tiles.registerPlugin(new ReorientationPlugin({ lat: 35.6595*DEG, lon: 139.7005*DEG, height: 45, recenter: true }));
+tiles.setCamera(camera);
+tiles.setResolutionFromRenderer(camera, renderer);
+tiles.errorTarget = 6;
+scene.add(tiles.group);
+
+addEventListener('resize', () => {
+  camera.aspect = innerWidth/innerHeight;
+  camera.updateProjectionMatrix();
+  renderer.setSize(innerWidth, innerHeight);
+  tiles.setResolutionFromRenderer(camera, renderer);
+});
+
+const stat = document.getElementById('stat');
+let t0 = performance.now();
+function loop(){
+  requestAnimationFrame(loop);
+  const t = (performance.now() - t0)/1000;
+  const qsShot = qs.get('cam');
+  if(qsShot !== 'fixed'){
+    const ang = t*0.06 + 0.8;
+    const rad = 340, h = 230;
+    camera.position.set(Math.cos(ang)*rad, h, Math.sin(ang)*rad);
+    camera.lookAt(0, 30, 0);
+  }
+  camera.updateMatrixWorld();
+  tiles.update();
+  renderer.render(scene, camera);
+  const st = tiles.stats || {};
+  stat.textContent = `tiles: dl ${st.downloading ?? '-'} / parsing ${st.parsing ?? '-'} / visible ${tiles.visibleTiles ? tiles.visibleTiles.size : '-'}`;
+}
+loop();
+</script>
+</body>
+</html>
