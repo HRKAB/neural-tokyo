@@ -320,6 +320,11 @@ function sampleHeights(budget){
     if(hit && hit.point.y > -50 && hit.point.y < 300){
       const y = hit.point.y + 0.25;
       l.ys[i] = isNaN(l.ys[i]) ? y : l.ys[i]*0.5 + y*0.5;
+      groundSamples.push(hit.point.y);
+      if(groundSamples.length % 120 === 0){
+        const s2 = groundSamples.slice(-600).sort((a,b)=>a-b);
+        GROUND_FALLBACK = s2[s2.length>>1] + 0.25;
+      }
     }
     n++;
   }
@@ -850,11 +855,11 @@ function drawBrain(){
 /* ============ cinema director ============ */
 const SHOTS = [
   { id:'DESCENT', sub:'real Shibuya — Google Photorealistic 3D Tiles', dur:9, fov:40,
-    cam:t=>[lerp(-480,-70,smooth(t)), lerp(620,150,smooth(t)), lerp(600,170,smooth(t))], look:t=>[0,42,0] },
+    cam:t=>[lerp(-560,-140,smooth(t)), lerp(700,260,smooth(t)), lerp(680,300,smooth(t))], look:t=>[0,48,0] },
   { id:'THE CROSSING', sub:'1,000 vehicles · real traffic physics on real roads', dur:12, fov:44,
-    cam:t=>{ const a=0.9+t*0.55; return [Math.cos(a)*165, 128+10*Math.sin(t*3), Math.sin(a)*165]; }, look:t=>[0,40,0] },
+    cam:t=>{ const a=0.9+t*0.5; return [Math.cos(a)*245, 205+12*Math.sin(t*3), Math.sin(a)*245]; }, look:t=>[0,44,0] },
   { id:'STREET LEVEL', sub:'Intelligent Driver Model + signal-timed intersections', dur:10, fov:30,
-    cam:t=>[36+t*6, GROUND()+13, 58-t*4], look:t=>[-30,GROUND()+4,-30] },
+    cam:t=>[70+t*8, GROUND()+24, 96-t*6], look:t=>[-40,GROUND()+4,-40] },
   { id:'FOLLOW', sub:'the crimson car — autonomous lane driving', dur:12, fov:36, hero:true },
   { id:'BRAIN', sub:'a neural net learning to drive from photoreal pixels', dur:16, fov:42, hero:true, brain:true },
   { id:'ASCEND', sub:'NEURAL TOKYO — one browser tab, the real city', dur:11, fov:46,
@@ -880,7 +885,8 @@ addEventListener('keydown', e=>{
 });
 function director(dt, t){
   const S = SHOTS[shotIdx];
-  shotT += dt;
+  if(qs.has('freeze')) shotT = SHOTS[shotIdx].dur * (+qs.get('freeze') || 0.5);
+  else shotT += dt;
   if(autoPlay && shotT > S.dur){ shotIdx = (shotIdx+1) % SHOTS.length; if(shotIdx===0) shotIdx=1; shotT = 0; }
   const S2 = SHOTS[shotIdx];
   dots.forEach((d,i)=>d.classList.toggle('on', i===shotIdx));
