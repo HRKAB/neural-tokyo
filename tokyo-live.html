@@ -284,7 +284,21 @@ document.getElementById('vRoads').textContent = edges.length + ' edges';
 /* ============ terrain height sampling (raycast into photogrammetry) ============ */
 let GROUND_FALLBACK = 40;
 const raycaster = new THREE.Raycaster();
-raycaster.firstHitOnly = true;
+raycaster.firstHitOnly = false;
+function groundHitY(x, z, ref){
+  raycaster.set(new THREE.Vector3(x, 400, z), DOWN);
+  const hits = raycaster.intersectObject(tiles.group, true);
+  if(!hits.length) return null;
+  // choose the hit closest to a reference height (neighbouring road), else the lowest plausible
+  let best = null, bd = 1e9;
+  for(const hh of hits){
+    const y = hh.point.y;
+    if(y < -60 || y > 260) continue;
+    if(ref != null){ const d = Math.abs(y-ref); if(d < bd){ bd = d; best = y; } }
+    else { if(best == null || y < best) best = y; }
+  }
+  return best;
+}
 const DOWN = new THREE.Vector3(0,-1,0);
 const heightQueue = [];
 for(const l of dirLanes) for(let i=0;i<l.pts.length;i++) heightQueue.push([l,i]);
@@ -325,38 +339,33 @@ function filterLaneHeights(){
 }
 function sampleHeights(budget){
   let n = 0;
-  const origin = new THREE.Vector3();
   while(n < budget && hqPtr < heightQueue.length){
     const [l,i] = heightQueue[hqPtr];
-    origin.set(l.pts[i][0], 500, l.pts[i][1]);
-    raycaster.set(origin, DOWN);
-    const hit = raycaster.intersectObject(tiles.group, true)[0];
-    if(hit && hit.point.y > -50 && hit.point.y < 300){
-      l.ys[i] = hit.point.y + 0.25;
-      groundSamples.push(hit.point.y);
-      if(groundSamples.length === 60){
-        groundSamples.sort((a,b)=>a-b);
-        GROUND_FALLBACK = groundSamples[30] + 0.25;
-      }
-      hqPtr++;
-    } else { hqPtr++; } // keep NaN → fallback used
-    n++;
+    // reference = nearest already-known y on this lane (roads are locally flat)
+    let ref = null;
+    for(let d=1; d<l.ys.length && ref==null; d++){
+      if(i-d>=0 && !isNaN(l.ys[i-d])) ref = l.ys[i-d];
+      else if(i+d<l.ys.length && !isNaN(l.ys[i+d])) ref = l.ys[i+d];
+    }
+    if(ref == null && groundSamples.length) ref = GROUND_FALLBACK;
+    const y = groundHitY(l.pts[i][0], l.pts[i][1], ref);
+    if(y != null){
+      l.ys[i] = y + 0.2;
+      groundSamples.push(y);
+      if(groundSamples.length === 60){ const s=groundSamples.slice().sort((a,b)=>a-b); GROUND_FALLBACK = s[30]+0.2; }
+    }
+    hqPtr++; n++;
   }
-  // continuous refinement pass (LOD improves over time)
   while(n < budget && heightQueue.length){
     const [l,i] = heightQueue[refreshPtr % heightQueue.length];
     refreshPtr++;
-    origin.set(l.pts[i][0], 500, l.pts[i][1]);
-    raycaster.set(origin, DOWN);
-    const hit = raycaster.intersectObject(tiles.group, true)[0];
-    if(hit && hit.point.y > -50 && hit.point.y < 300){
-      const y = hit.point.y + 0.25;
-      l.ys[i] = isNaN(l.ys[i]) ? y : l.ys[i]*0.5 + y*0.5;
-      groundSamples.push(hit.point.y);
-      if(groundSamples.length % 120 === 0){
-        const s2 = groundSamples.slice(-600).sort((a,b)=>a-b);
-        GROUND_FALLBACK = s2[s2.length>>1] + 0.25;
-      }
+    let ref = !isNaN(l.ys[i]) ? l.ys[i] - 0.2 : (groundSamples.length ? GROUND_FALLBACK : null);
+    const y = groundHitY(l.pts[i][0], l.pts[i][1], ref);
+    if(y != null){
+      const ny = y + 0.2;
+      l.ys[i] = isNaN(l.ys[i]) ? ny : l.ys[i]*0.6 + ny*0.4;
+      groundSamples.push(y);
+      if(groundSamples.length % 120 === 0){ const s=groundSamples.slice(-600).sort((a,b)=>a-b); GROUND_FALLBACK = s[s.length>>1]+0.2; }
     }
     n++;
   }
@@ -887,8 +896,8 @@ function drawBrain(){
 
 /* ============ cinema director ============ */
 const SHOTS = [
-  { id:'DESCENT', sub:'real Shibuya — Google Photorealistic 3D Tiles', dur:9, fov:40,
-    cam:t=>[lerp(-560,-140,smooth(t)), lerp(700,260,smooth(t)), lerp(680,300,smooth(t))], look:t=>[0,48,0] },
+  { id:'DESCENT', sub:'real Shibuya — Google Photorealistic 3D Tiles', dur:9, fov:42,
+    cam:t=>[lerp(-640,-250,smooth(t)), lerp(820,360,smooth(t)), lerp(760,410,smooth(t))], look:t=>[-20,50,-20] },
   { id:'THE CROSSING', sub:'1,000 vehicles · real traffic physics on real roads', dur:12, fov:44,
     cam:t=>{ const a=0.9+t*0.5; return [Math.cos(a)*245, 205+12*Math.sin(t*3), Math.sin(a)*245]; }, look:t=>[0,44,0] },
   { id:'STREET LEVEL', sub:'Intelligent Driver Model + signal-timed intersections', dur:10, fov:30,

@@ -1,69 +1,55 @@
 # NEURAL TOKYO
 
-**A city that drives itself — and one car that learns to.**
-
-One HTML file. No build step, no server, no ML library. Open it and a procedurally generated night-Tokyo comes alive: 1,200 vehicles self-organize using real traffic science, and a real neural network — implemented from scratch in ~150 lines of plain JavaScript — learns to drive from raw camera pixels, live, in front of you.
+**Google Earth, but alive.** The real, photorealistic Shibuya — streaming as Google 3D Tiles — with 1,000 vehicles driving on the real road network, and one crimson car teaching itself to drive from the photoreal pixels. In a browser tab. No engine, no server.
 
 ![NEURAL TOKYO](og.png)
 
-## Run it
+## Two builds
 
-```bash
-# no install. either:
-open index.html          # macOS
-# or serve it (recommended for fonts):
-npx serve .
+| File | What it is |
+|---|---|
+| **`tokyo-live.html`** ⭐ | The real thing. Google Photorealistic 3D Tiles of Shibuya + live traffic simulation on OpenStreetMap roads + a neural driver, with a 6-shot cinematic auto-tour. Needs a Google Map Tiles API key: open with `?key=YOUR_KEY`. |
+| `index.html` | The offline sibling: a fully procedural night-Shibuya (real OSM roads & building footprints, hand-built geometry). No API key, works anywhere, single file. |
+
+## Run the live build
+
+```
+tokyo-live.html?key=YOUR_MAP_TILES_KEY
 ```
 
-Requires WebGL (any modern browser). Best on desktop.
+Get a key: Google Cloud Console → enable **Map Tiles API** → create an API key. Photorealistic 3D Tiles is usage-billed; set a daily quota cap and a budget alert to stay in control (this project caps renderer requests at 13,000/day).
 
-## The three views
+Controls: keys `1`–`6` jump between shots, `space` toggles auto-play. URL params: `?cam=fixed`, `?shot=N`, `?hq` (higher tile detail), `?record=45` (auto-downloads a 45-second WebM), `?human=0.8` (driver mix).
 
-| Key | View | What you're seeing |
-|---|---|---|
-| `1` | CITY | Aerial view of 1,200 cars flowing through a signal-free grid. Drag the **HUMAN DRIVERS** slider: at 0% traffic is liquid; push it up and phantom jams condense out of nothing — a real emergent phenomenon of the Intelligent Driver Model, not a script. |
-| `2` | CHASE | Cinematic follow-cam behind the crimson hero car. |
-| `3` | BRAIN | The hero car switches to a free-body physics model and a neural network starts learning to drive it. Left panel shows the net's actual camera input (48×16 grayscale pixels), every neuron's live activation, the imitation loss falling, and the autonomy blend rising. |
+## The six shots
 
-## What is honestly real here
+1. **DESCENT** — fall out of the sky onto the real Shibuya scramble.
+2. **THE CROSSING** — 1,000 cars flowing through the real street grid with real traffic physics.
+3. **STREET LEVEL** — down among the buildings; IDM car-following + signal-timed intersections.
+4. **FOLLOW** — chase the crimson car as it drives itself along real lanes.
+5. **BRAIN** — the neural net takes the wheel and learns, live: its 48×16 camera input, every neuron firing, the imitation loss falling, autonomy climbing.
+6. **ASCEND** — pull back up over the whole living city.
 
-- **Traffic**: longitudinal dynamics are the [Intelligent Driver Model](https://en.wikipedia.org/wiki/Intelligent_driver_model) (Treiber et al., 2000) — the standard car-following model in traffic science. Intersections use time-sliced, signal-free arbitration. "Human" drivers differ only by parameters: longer headways, ~0.7 s perception delay, and random brake taps. Phantom jams emerge from the math, exactly as they do on real highways.
-- **The neural network**: a 769→48→24→2 MLP (38,186 parameters), forward pass *and* backpropagation hand-written in plain JS. Input is genuinely the pixels of a WebGL render from the car's front bumper (96×32, downsampled to 48×16 grayscale) plus current speed. Output is steering and acceleration.
-- **Learning**: behavioral cloning of a classical teacher (pure pursuit + IDM), trained by SGD with momentum on a replay buffer, in the render loop. When the student drifts off lane, the teacher takes over for a moment and the correction becomes new training data — a DAgger-style loop. The takeover counter and "meters since takeover" are real measurements.
-- **Not real**: this is a toy homage, not production autonomy. Nobody's driving stack looks like this. It's ALVINN (1989, 30×32 pixels!) reborn in a browser tab — a love letter to the idea that a camera and a network are enough to learn to drive.
+## What is honestly real
+
+- **The city**: Google's Photorealistic 3D Tiles — actual aerial photogrammetry of Shibuya, streamed and rendered by [`3d-tiles-renderer`](https://github.com/NASA-AMMOS/3DTilesRendererJS). Not modeled. Not faked.
+- **The roads**: the real Shibuya network from OpenStreetMap — real geometry, lane counts, one-way rules, and signal positions. Vehicles sit on the photogrammetry by raycasting the tiles for ground height.
+- **The traffic**: the Intelligent Driver Model (Treiber et al., 2000), the standard car-following model in traffic science, plus signal-timed intersection arbitration. "Human" drivers differ only by longer headways, ~0.65 s reaction, and random brake taps — so phantom jams emerge, as on real roads.
+- **The driver**: a 769→48→24→2 MLP (38,186 parameters), forward pass *and* backprop hand-written in plain JS. Input is the real pixels of a WebGL render from the car's bumper (downsampled to 48×16 grayscale) plus speed. Output is steering + acceleration. It's trained by behavioral cloning of a pure-pursuit + IDM teacher, with DAgger-style takeovers when it drifts off lane. No TensorFlow. No rules.
+- **Not real**: this is a toy homage, not production autonomy. It's ALVINN (1989) reborn on top of Google Earth — a love letter to the idea that a camera and a network are enough to learn the road.
 
 ## Why this shape
 
-[Turing Inc.](https://tur.ing) is building camera-first, end-to-end autonomous driving for Tokyo — the thesis that driving intelligence should live in the *brain*, not in an ever-taller stack of sensors. This demo is a tribute to that idea at 1/1,000,000 scale: watch a brain, however small, teach itself the road.
-
-## Architecture (single file, ~2,400 lines)
-
-```
-CONFIG / UTILS      seeded RNG — the same city every load
-CITY                road graph, parcels, merged-geometry buildings,
-                    canvas-generated window & neon textures
-TRAFFIC             IDM + intersection arbitration + per-driver profiles
-NEURAL              typed-array MLP, backprop, replay buffer, DAgger loop
-RENDER              Three.js r160, instanced meshes (6 draw calls for all cars),
-                    UnrealBloom, height-adaptive fog, fake wet-road streaks
-DIRECTOR / HUD      damped camera rig, EN/JA UI, live brain visualization
-```
-
-Handy URL params: `?cars=2000` `?human=0.5` `?mode=brain` `?t=60` (sim warm-up seconds), `?shot=overview|street|hero` (fixed cameras for capture).
+[Turing Inc.](https://tur.ing) builds camera-first, end-to-end autonomous driving for Tokyo — the bet that driving intelligence lives in the brain, not the sensor stack. This is that idea at 1/1,000,000 scale, running on the actual streets of Shibuya.
 
 ## Reproduce the trick
 
-The whole "AI learns to drive" pipeline is four small pieces you can lift:
-
-1. render the scene from the agent's POV into a tiny render target;
-2. `readRenderTargetPixels` → grayscale Float32Array;
-3. a hand-rolled MLP + backprop (~150 lines — see `nnForward` / `nnTrainBatch`);
-4. label each frame with a classical controller's output and imitate it, keeping a takeover rule so mistakes generate data.
-
-No TensorFlow.js required. The browser is enough.
+Four small pieces, all liftable:
+1. stream Google Photorealistic 3D Tiles into three.js with `3d-tiles-renderer` + `GoogleCloudAuthPlugin`;
+2. raycast the tiles (three-mesh-bvh) to place a simulation on the real ground;
+3. render the agent's POV to a tiny render target and read the pixels;
+4. a hand-rolled MLP + backprop imitating a classical controller, with a takeover rule.
 
 ## Credits
 
-Designed and built in one session with **Claude** (Anthropic). Traffic model: Treiber, Hennecke & Helbing (2000). Spiritual ancestor: Pomerleau's ALVINN (1989). Visual language influenced by the [Turing Design System](https://turing-design-system-zeta.vercel.app/).
-
-MIT License.
+Built with **Claude** (Anthropic). Imagery © Google. Road data © OpenStreetMap contributors. Traffic model: Treiber, Hennecke & Helbing (2000). Ancestor: Pomerleau's ALVINN (1989). MIT License (code only; tile imagery is Google's under its own terms).

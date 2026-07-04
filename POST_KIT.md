@@ -1,80 +1,75 @@
-# NEURAL TOKYO — X投稿キット（2026-07-05）
+# NEURAL TOKYO — X投稿キット v3（実写版・2026-07-05）
 
-投稿前チェック: 本キットの全文言はArgus観点で自己監査済（機密なし・未公開IRなし・実写映像なし＝L2表記ルール対象外・他社言及なし）。「Turingの技術の再現」とは一切主張しない文言に統一。
+投稿前チェック: 全文言Argus観点で自己監査済（機密/未公開IRなし・実写=Google 3D Tiles＝L2走行映像ではないため footage 表記規則対象外・他社中傷なし）。「Turingの技術の再現」とは主張しない。事実のみ。
+
+**ライブURL（本番）**: `https://raw.githack.com/HRKAB/neural-tokyo/main/tokyo-live.html?key=<KEY>`
+※ 公開時は自ドメイン（vercel）へ載せ替え、APIキーはHTTPリファラ制限をかける（拡散時のキー抜き取り防止）。動画ファースト戦略で体験版は限定公開。
 
 ---
 
-## 1. メイン投稿（EN — グローバル狙い）
+## 1. メイン投稿（EN）
 
-> I asked Claude to build something that would normally take a year.
+> This is the real Shibuya. Not a model — Google's photorealistic 3D tiles.
 >
-> One HTML file. No server. No ML library.
->
-> 1,200 cars self-organize with real traffic physics — and one car learns to drive from raw pixels, with a neural network training live in your browser.
+> I put 1,000 cars on the real roads with real traffic physics, and let one neural network teach itself to drive from the pixels. Live. In a browser tab.
 >
 > NEURAL TOKYO 🌃
-> [URL]
-
-（動画添付：下記構成案A）
+> [動画]
 
 ## 2. メイン投稿（JA）
 
-> Claudeに「普通なら開発に1年かかるもの」を頼んだら、これが返ってきた。
+> これは本物の渋谷。モデルじゃなくて、Googleの実写3Dタイル。
 >
-> HTMLファイル1枚。サーバーなし。MLライブラリなし。
->
-> 1,200台が本物の交通物理で自己組織化する夜の東京で、1台だけ、生のカメラピクセルからニューラルネットが運転を学んでいく。
+> その実際の道路に1,000台を走らせて本物の交通物理で動かし、1台のニューラルネットに「映像だけ」で運転を学ばせた。ブラウザのタブの中で、リアルタイムに。
 >
 > NEURAL TOKYO
-> [URL]
+> [動画]
 
-## 3. スレッド構成（EN、リプライツリー）
+## 3. スレッド（EN）
 
-1. **(動画: BRAINモード30秒)** "The red car is not scripted. A 38,186-parameter MLP — written from scratch in plain JS — reads 48×16 grayscale pixels from its front camera and outputs steering + throttle. You watch the loss fall and the autonomy meter climb, live."
-2. **(動画: スライダー操作15秒)** "Drag one slider and phantom traffic jams condense out of nothing. That's not animation — it's the Intelligent Driver Model (the standard model in traffic science). Human drivers = longer headways + 0.7s reaction delay. That's all it takes."
-3. **(スクショ: 学習ループ図/コード)** "The trick is 4 steps: render the car's POV to a tiny texture → read pixels → hand-rolled backprop → imitate a classical controller, with DAgger-style takeovers when the student drifts. ALVINN did this in 1989 with 30×32 pixels. Your browser can do it today."
-4. **(スクショ: CITY俯瞰)** "Everything is generated: the city, the window lights, the neon, the rain. Seeded RNG — everyone sees the same Tokyo. 6 draw calls for all 1,200 cars."
-5. "Why this shape? @Turing_inc is building camera-first end-to-end autonomy in Tokyo — the bet that driving intelligence lives in the brain, not the sensor stack. This is that idea at 1:1,000,000 scale. Code: [GitHub URL]"
-6. "Built in one session with Claude. Prompting approach + full write-up: [記事URL]"
+1. **(BRAINショット動画)** "The crimson car isn't scripted. A 38,186-parameter neural net — written from scratch in plain JS — reads 48×16 pixels from its front camera and outputs steering + throttle. Watch the loss fall and autonomy climb, over the real Shibuya."
+2. **(THE CROSSING動画)** "1,000 cars, real Shibuya road network from OpenStreetMap, real traffic physics (the Intelligent Driver Model). Cars sit on the actual photogrammetry — ground height comes from raycasting Google's 3D tiles."
+3. **(コード/学習ループ図)** "The stack: 3d-tiles-renderer streams Google's tiles → three-mesh-bvh raycasts the ground → the car's POV renders to a tiny texture → a hand-rolled MLP imitates a pure-pursuit teacher with DAgger takeovers. ALVINN did this in 1989 at 30×32. Your browser does it on Google Earth."
+4. **(DESCENT静止画)** "No game engine. No server. One HTML file + a Map Tiles key. It runs the real city."
+5. "Why? @Turing_inc builds camera-first end-to-end autonomy in Tokyo — intelligence in the brain, not the sensor stack. This is that idea at 1:1,000,000, on the real streets of Shibuya. Code: github.com/HRKAB/neural-tokyo"
+6. "Built in one session with Claude. Full write-up + how to reproduce: [記事URL]"
 
-## 4. 動画構成案A（メイン添付・45秒・16:9）
+## 4. 動画構成（45秒・本体`?record=45`で自動収録）
 
-| 秒 | 画 | 意図 |
+本体の6ショット自動ツアーがそのまま尺になる。実機Chromeで `?record=45` を付けて開く → 45秒後に `neural-tokyo-live.webm` が自動ダウンロード → 必要なら冒頭3秒をサムネ映えするDESCENT頂点にトリム。
+
+| 秒 | ショット | 狙い |
 |---|---|---|
-| 0-3 | タイトルカード→空撮落下（イントロそのまま） | 3秒Wow・スケール提示 |
-| 3-12 | CITY俯瞰オービット、光の川 | 「生きている都市」 |
-| 12-20 | HUMAN DRIVERSスライダー 0→70%、渋滞が生まれる（JAM INDEX上昇を画面内で見せる） | 科学の驚き・参加可能性 |
-| 20-24 | CHASE：クリムゾンの1台に急降下 | 主役の提示 |
-| 24-38 | BRAIN：カメラ入力→発火→LOSS低下→AUTONOMY上昇、介入→復帰 | 核心。「学んでいる」 |
-| 38-45 | 引きの俯瞰＋コピー「one HTML file / no server / no ML library」→URL | 再現性の一撃・CTA |
+| 0-3 | DESCENT頂点（実写渋谷が視界に開ける） | 3秒Wow・「これ実写？」 |
+| 3-12 | THE CROSSING（1,000台の光の流れ） | スケールと生命感 |
+| 12-22 | STREET LEVEL（ビルの谷、交差点） | 実在感の接写 |
+| 22-30 | FOLLOW（クリムゾンを追走） | 主役提示 |
+| 30-40 | BRAIN（学習パネル・LOSS低下・介入→復帰） | 核心「学んでいる」 |
+| 40-45 | ASCEND＋コピー「the real city, in a browser tab」 | CTA |
 
-撮影: 実機Chrome最大化、`?shot=` パラメータでカメラ固定可。QuickTime画面収録→1080p書き出し。
+## 5. スクリーンショット案（4枚）
 
-## 5. スクリーンショット案（静止画4枚）
+1. DESCENT頂点（実写渋谷スクランブル俯瞰）＝og.png候補
+2. FOLLOW（実写ビル群を背にクリムゾン走行）
+3. BRAINパネル全景（実写背景×学習可視化＝「中身が見える」）
+4. カメラ入力48×16の拡大（"これが車の見ている全て"）
 
-1. CITY俯瞰（og.png と同構図・光の川）
-2. BRAINモード全景（右パネル込み＝「中身が見える」ことが伝わる）
-3. カメラ入力 48×16 の拡大（"これが車が見ている全て"）
-4. スライダー0%と70%の比較2連結（渋滞の発生）
+## 6. 再現記事の構成
 
-## 6. 再現記事の構成案（note / Zenn / X長文）
+1. 完成動画
+2. なぜ実写路線に転換したか（手書きポリゴンの限界→実写データが唯一の正答）
+3. スタック解説（3d-tiles-renderer / setLatLonToYUp の罠 / BVHレイキャストで路面高 / POVピクセル→純JSバックプロパゲーション / DAgger）
+4. Claude活用（Chrome経由でGCP APIキー発行・GitHub運用・隠れタブでも streaming を回すスケジューラ差し替え・スクショ自己検証）
+5. 最小再現4ステップ＋拡張（夜化不可の制約・WebGPU・複数都市）
+6. 締め：カメラと脳だけで運転は学べるか → Turingの現実へ
 
-1. 掴み：完成動画
-2. なぜ作ったか：Genie 3時代に「学習過程そのもの」を見せたい／Turingの頭脳優位思想
-3. アイデア発散20案→評価表→NEURAL TOKYO決定の思考過程（DEVLOG転載）
-4. 技術解説：都市生成／IDM／無信号交差点／純JSバックプロパゲーション／DAggerループ（コード断片付き）
-5. Claudeへのディレクション術：QAループ（スクショ自己検証）、車線が逆になったバグと座標系検証、視覚品質の反復
-6. 最小再現（4ステップ）と拡張アイデア
-7. 締め：カメラと脳だけで運転は学べるか → Turingの現実のチャレンジへ接続
+## 7. 拡張アイデア（第2波）
 
-## 7. 拡張アイデア（バズ第2波用）
+- 学習済み重みをURLに埋めて共有 #MyNeuralDriver
+- 世界の他都市（NYC/SF/パリ）ワンパラメータ切替
+- ドローンFPVショット追加
+- Genie系World Modelとの対比記事
 
-- 「あなたのブラウザで学習したネットの重みをURLに埋めて共有」→ #MyNeuralDriver
-- 学習済み vs 未学習のレース動画
-- WebGPU化で10,000台
-- ハンドトラッキングで人間介入（案Bの吸収）
-- 実在の東京の道路グラフ（OSM）読み込み
+## 8. コスト注意（重要）
 
-## 8. 投稿タイミング推奨
-
-火〜木の日本時間22-24時（US西海岸朝・欧州夕方の重複帯）。メインはENを@AbeHirakuから、JA引用RTで日本語圏を回収。
+Photorealistic 3D Tilesは従量課金。日次クォータ13,000req・予算¥30,000アラート設定済（2026-07-05）。**拡散＝閲覧増＝課金増**なので、Xには動画を貼り、ライブ体験版は「触りたい人向け」に限定的に案内する。バズ規模次第でキーのリファラ制限・上限引き下げを即応する。
