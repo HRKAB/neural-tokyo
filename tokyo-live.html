@@ -942,10 +942,8 @@ let t0 = performance.now(), lastT = 0, frame = 0, lastFlowT = 0, lastFlowC = 0, 
   const warm = +(qs.get('t') || 25);
   for(let k=0;k<warm*30;k++) trafficStep(1/30);
 }
-function loop(){
-  requestAnimationFrame(loop);
-  const t = (performance.now()-t0)/1000;
-  const dt = Math.min(t-lastT, 0.1); lastT = t;
+let tClock = 0;
+function frameBody(dt, t){
   const steps = clamp(Math.round(dt/(1/60)),1,4);
   for(let k=0;k<steps;k++) trafficStep(dt/steps);
   const brainOn = director(dt, t);
@@ -976,7 +974,25 @@ function loop(){
   }
   frame++;
 }
+function loop(){
+  requestAnimationFrame(loop);
+  const t = (performance.now()-t0)/1000;
+  const dt = Math.min(t-lastT, 0.1); lastT = t;
+  tClock = t;
+  frameBody(dt, t);
+}
 loop();
+/* hidden-tab keepalive: tiles keep streaming & heights keep sampling while unfocused */
+setInterval(()=>{ if(document.hidden){ tClock += 0.25; try{ frameBody(0.05, tClock); }catch(e){ err('KA '+e.message); } } }, 300);
+/* QA pump: drive deterministic frames from automation even when the tab is hidden */
+document.addEventListener('nt-qa', ev => {
+  const d = (ev && ev.detail) || {};
+  const n = d.frames || 30, dt = d.dt || 1/30;
+  try{
+    for(let i=0;i<n;i++){ tClock += dt; frameBody(dt, tClock); }
+    dbgEl.textContent += '|QA-OK';
+  }catch(e){ err('QA '+e.message); dbgEl.textContent += '|QA-ERR:' + e.message; }
+});
 setTimeout(()=>document.getElementById('load').classList.add('gone'), 22000);
 </script>
 </body>
