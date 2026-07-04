@@ -752,8 +752,9 @@ function heroTeacher(dt){
   const sStar=P0.s0+Math.max(0,heroCtl.v*P0.T+(heroCtl.v*dv)/(2*Math.sqrt(P0.aMax*P0.bCom)));
   const accT=clamp(P0.aMax*(1-(heroCtl.v/v0)**4-(sStar/gap)**2)/2.5,-1,1);
   heroCtl.teach=[steerT,accT];
-  // ground height under hero from path
-  heroCtl.yTarget = cur.y;
+  // live ground height (heights refine over time; never trust cached path y)
+  heroCtl.yTarget = cur.conn ? cur.y : laneY(cur.seg, cur.s);
+  if(heroCtl.y < heroCtl.yTarget - 3 || heroCtl.y > heroCtl.yTarget + 8) heroCtl.y = heroCtl.yTarget;
   return heroCtl.teach;
 }
 function heroPhysics(steer, accel, dt){
@@ -762,7 +763,7 @@ function heroPhysics(steer, accel, dt){
   heroCtl.yaw += (heroCtl.v/2.7)*Math.tan(heroCtl.steer)*dt;
   heroCtl.x += Math.sin(heroCtl.yaw)*heroCtl.v*dt;
   heroCtl.z += Math.cos(heroCtl.yaw)*heroCtl.v*dt;
-  heroCtl.y = lerp(heroCtl.y, heroCtl.yTarget ?? heroCtl.y, clamp(dt*5,0,1));
+  heroCtl.y = lerp(heroCtl.y, heroCtl.yTarget ?? heroCtl.y, clamp(dt*8,0,1));
   heroCtl.sinceTakeover += heroCtl.v*dt;
   hero.v = heroCtl.v; hero.odo = (hero.odo||0) + heroCtl.v*dt;
 }
