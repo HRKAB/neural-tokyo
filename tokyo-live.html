@@ -290,7 +290,39 @@ const heightQueue = [];
 for(const l of dirLanes) for(let i=0;i<l.pts.length;i++) heightQueue.push([l,i]);
 // nearest-to-center first so the visible area lands correctly first
 heightQueue.sort((A,B)=> (A[0].pts[A[1]][0]**2+A[0].pts[A[1]][1]**2) - (B[0].pts[B[1]][0]**2+B[0].pts[B[1]][1]**2));
-let hqPtr = 0, refreshPtr = 0, groundSamples = [];
+let hqPtr = 0, refreshPtr = 0, groundSamples = [], filterTick = 0;
+/* reject outliers: lane heights must be locally consistent (roads are smooth) */
+function filterLaneHeights(){
+  for(const l of dirLanes){
+    const ys = l.ys, n = ys.length;
+    if(n < 3) continue;
+    const valid = [];
+    for(let i=0;i<n;i++) if(!isNaN(ys[i])) valid.push(ys[i]);
+    if(valid.length < 3) continue;
+    valid.sort((a,b)=>a-b);
+    const med = valid[valid.length>>1];
+    for(let i=0;i<n;i++){
+      if(isNaN(ys[i])) continue;
+      if(Math.abs(ys[i]-med) > 7) ys[i] = NaN;   // building roof / overpass pollution
+    }
+    // limit slope between consecutive points (<18%)
+    for(let i=1;i<n;i++){
+      if(isNaN(ys[i]) || isNaN(ys[i-1])) continue;
+      const run = Math.hypot(l.pts[i][0]-l.pts[i-1][0], l.pts[i][1]-l.pts[i-1][1]) || 1;
+      const dy = ys[i]-ys[i-1];
+      if(Math.abs(dy)/run > 0.18) ys[i] = ys[i-1] + Math.sign(dy)*run*0.18;
+    }
+    // fill NaN gaps by interpolation
+    let last = NaN;
+    for(let i=0;i<n;i++){
+      if(!isNaN(ys[i])){ last = ys[i]; continue; }
+      let j = i+1; while(j<n && isNaN(ys[j])) j++;
+      if(!isNaN(last) && j<n){ ys[i] = last + (ys[j]-last)*(1/(j-i+1)); }
+      else if(!isNaN(last)) ys[i] = last;
+      else if(j<n) ys[i] = ys[j];
+    }
+  }
+}
 function sampleHeights(budget){
   let n = 0;
   const origin = new THREE.Vector3();
@@ -964,6 +996,8 @@ function frameBody(dt, t){
   camera.updateMatrixWorld();
   tiles.update();
   sampleHeights(loaded ? 14 : 40);
+  filterTick++;
+  if(filterTick % 240 === 0) filterLaneHeights();
   renderer.render(scene, camera);
   if(brainOn && frame%2===0) drawBrain();
   if(frame % 12 === 0){
