@@ -133,6 +133,11 @@ tiles.setCamera(camera);
 tiles.setResolutionFromRenderer(camera, renderer);
 tiles.errorTarget = qs.has('hq') ? 6 : 10;
 scene.add(tiles.group);
+/* hidden-tab fix: library queues schedule via rAF, which never fires in hidden tabs.
+   Drive them with setTimeout so streaming continues during automated capture. */
+for(const qn of ['downloadQueue','parseQueue','processNodeQueue']){
+  if(tiles[qn]) tiles[qn].schedulingCallback = f => setTimeout(f, 16);
+}
 tiles.addEventListener('load-model', e => {
   queueMicrotask(() => {
     try{
