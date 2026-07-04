@@ -3,7 +3,8 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>NEURAL TOKYO — LIVE (Photorealistic Shibuya)</title>
+<title>NEURAL TOKYO LIVE — real Shibuya, driving itself</title>
+<meta name="description" content="Google Earth, but alive. Real photorealistic Shibuya + 1,000 simulated vehicles on real roads + a neural net learning to drive from photoreal pixels. In your browser.">
 <script type="importmap">
 {"imports":{
   "three":"https://cdn.jsdelivr.net/npm/three@0.170.0/build/three.module.js",
@@ -11,85 +12,968 @@
   "3d-tiles-renderer":"https://cdn.jsdelivr.net/npm/3d-tiles-renderer@0.4.28/build/index.js",
   "3d-tiles-renderer/plugins":"https://cdn.jsdelivr.net/npm/3d-tiles-renderer@0.4.28/build/index.plugins.js",
   "3d-tiles-renderer/three":"https://cdn.jsdelivr.net/npm/3d-tiles-renderer@0.4.28/build/index.three.js",
-  "3d-tiles-renderer/core":"https://cdn.jsdelivr.net/npm/3d-tiles-renderer@0.4.28/build/index.core.js"
+  "3d-tiles-renderer/core":"https://cdn.jsdelivr.net/npm/3d-tiles-renderer@0.4.28/build/index.core.js",
+  "three-mesh-bvh":"https://cdn.jsdelivr.net/npm/three-mesh-bvh@0.9.10/build/index.module.js"
 }}
 </script>
 <style>
+:root{ --crimson:#AD002D; --ink:#EEEEEE; --dim:#9AA1B0; --panel:rgba(8,10,15,0.78); --hair:rgba(238,238,238,0.16); --mono:"JetBrains Mono",ui-monospace,monospace; --sans:"Inter","Noto Sans JP",-apple-system,sans-serif; }
 *{margin:0;padding:0;box-sizing:border-box}
 html,body{width:100%;height:100%;overflow:hidden;background:#0a0c10}
-#hud{position:fixed;top:14px;left:18px;z-index:10;font-family:"JetBrains Mono",ui-monospace,monospace;color:#EEE;font-size:12px;line-height:1.7;text-shadow:0 1px 3px rgba(0,0,0,0.8)}
-#hud b{color:#AD002D;letter-spacing:0.2em;font-size:14px}
-#attr{position:fixed;bottom:10px;right:14px;z-index:10;font-family:sans-serif;color:#fff;font-size:11px;text-shadow:0 1px 2px #000}
-#err{position:fixed;bottom:14px;left:18px;z-index:10;font-family:monospace;color:#ff7080;font-size:11px;max-width:70vw;white-space:pre-wrap}
+.hud{position:fixed;font-family:var(--sans);color:var(--ink);user-select:none;z-index:10}
+#brand{top:16px;left:20px;text-shadow:0 1px 4px rgba(0,0,0,0.7)}
+#logo{font-weight:700;font-size:16px;letter-spacing:0.22em}
+#logo em{font-style:normal;color:var(--crimson)}
+#logo small{font-weight:400;font-size:10px;color:var(--dim);letter-spacing:0.14em;margin-left:8px}
+#tagline{font-size:10.5px;color:var(--dim);letter-spacing:0.06em;margin-top:2px}
+#chapter{top:16px;right:20px;text-align:right;font-family:var(--mono);text-shadow:0 1px 4px rgba(0,0,0,0.8)}
+#chapName{font-size:12px;letter-spacing:0.2em;color:var(--ink)}
+#chapSub{font-size:9.5px;color:var(--dim);letter-spacing:0.1em;margin-top:2px}
+#stats{left:20px;bottom:20px;background:var(--panel);border:1px solid var(--hair);border-radius:6px;padding:12px 14px;backdrop-filter:blur(12px);min-width:190px}
+.srow{display:flex;justify-content:space-between;align-items:baseline;margin:3.5px 0;gap:16px}
+.sl{font-size:9.5px;letter-spacing:0.14em;color:var(--dim)}
+.sv{font-family:var(--mono);font-size:13px}
+#note{left:20px;bottom:158px;font-family:var(--mono);font-size:9px;color:rgba(238,238,238,0.55);letter-spacing:0.05em;text-shadow:0 1px 3px #000}
+#shots{bottom:22px;left:50%;transform:translateX(-50%);display:flex;gap:8px}
+.dot{width:26px;height:3px;border-radius:2px;background:rgba(238,238,238,0.25);cursor:pointer;transition:background .3s}
+.dot.on{background:var(--crimson)}
+#brain{right:20px;top:64px;width:300px;background:var(--panel);border:1px solid var(--hair);border-radius:6px;padding:13px 15px;backdrop-filter:blur(14px);display:none}
+.ph{font-size:9.5px;letter-spacing:0.16em;color:var(--dim);margin:9px 0 5px}
+.ph:first-child{margin-top:0}
+#pov,#net,#lossc{width:100%;border-radius:4px;background:#05070c;display:block}
+#autbar{height:4px;background:rgba(238,238,238,0.1);border-radius:2px;margin:4px 0 2px}
+#autfill{height:100%;width:0%;background:linear-gradient(90deg,#5a0018,var(--crimson));border-radius:2px;transition:width .3s}
+#brainNote{font-size:9px;color:var(--dim);line-height:1.55;margin-top:8px}
+#attr{bottom:8px;right:12px;font-family:sans-serif;font-size:10.5px;color:#fff;text-shadow:0 1px 2px #000;z-index:11}
+#err{bottom:60px;right:14px;font-family:var(--mono);color:#ff8090;font-size:10px;max-width:46vw;white-space:pre-wrap;text-align:right}
+#load{position:fixed;inset:0;background:#05070C;z-index:50;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:16px;transition:opacity 1s;pointer-events:none}
+#load.gone{opacity:0}
+#loadT{font-weight:700;font-size:clamp(34px,6vw,72px);letter-spacing:0.26em;color:var(--ink);font-family:var(--sans)}
+#loadT em{font-style:normal;color:var(--crimson)}
+#loadS{font-family:var(--mono);font-size:11px;color:var(--dim);letter-spacing:0.14em}
+#recdot{top:18px;left:50%;transform:translateX(-50%);display:none;align-items:center;gap:7px;font-family:var(--mono);font-size:11px;color:#ff5060;letter-spacing:0.2em}
+#recdot i{width:9px;height:9px;border-radius:50%;background:#ff2030;display:inline-block;animation:bl 1.2s infinite}
+@keyframes bl{50%{opacity:0.25}}
 </style>
 </head>
 <body>
-<div id="hud"><b>NEURAL TOKYO</b> / LIVE — real Shibuya (Google Photorealistic 3D Tiles)<br><span id="stat">loading…</span></div>
-<div id="attr">© Google</div>
-<div id="err"></div>
+<div class="hud" id="brand"><div id="logo">NEURAL<em>TOKYO</em><small>LIVE</small></div><div id="tagline">real Shibuya, driving itself — Google Photorealistic 3D Tiles × live traffic physics × a learning neural net</div></div>
+<div class="hud" id="chapter"><div id="chapName">—</div><div id="chapSub"></div></div>
+<div class="hud" id="stats">
+  <div class="srow"><span class="sl">VEHICLES</span><span class="sv" id="vCars">0</span></div>
+  <div class="srow"><span class="sl">AVG SPEED</span><span class="sv" id="vSpeed">0</span></div>
+  <div class="srow"><span class="sl">FLOW / MIN</span><span class="sv" id="vFlow">0</span></div>
+  <div class="srow"><span class="sl">ROAD GRAPH</span><span class="sv" id="vRoads">—</span></div>
+  <div class="srow"><span class="sl">TILES</span><span class="sv" id="vTiles">0</span></div>
+</div>
+<div class="hud" id="note">vehicles & neural driver = simulation on real OSM roads · imagery © Google · road data © OpenStreetMap contributors</div>
+<div class="hud" id="shots"></div>
+<div class="hud" id="brain">
+  <div class="ph">CAMERA INPUT · 48×16 px — photoreal pixels</div>
+  <canvas id="pov" width="288" height="96"></canvas>
+  <div class="ph">POLICY NETWORK · 38,186 params · trained live</div>
+  <canvas id="net" width="288" height="130"></canvas>
+  <div class="ph">IMITATION LOSS <span id="vLoss" style="color:var(--crimson)"></span> · STEPS <span id="vSteps" style="color:var(--ink)">0</span></div>
+  <canvas id="lossc" width="288" height="40"></canvas>
+  <div class="ph">AUTONOMY <span id="vAut" style="color:var(--crimson)">0%</span> · TAKEOVERS <span id="vTake" style="color:var(--ink)">0</span></div>
+  <div id="autbar"><div id="autfill"></div></div>
+  <div id="brainNote">a real MLP in plain JS, learning steering + speed from raw pixels of photorealistic Shibuya — imitation learning with automatic takeovers. no rules. no ML library.</div>
+</div>
+<div class="hud" id="recdot"><i></i>REC</div>
+<div id="attr">© Google · © OpenStreetMap</div>
+<div class="hud" id="err"></div>
+<div id="load"><div id="loadT">NEURAL<em>TOKYO</em></div><div id="loadS">streaming photorealistic Shibuya…</div></div>
+
 <script type="module">
 import * as THREE from 'three';
 import { TilesRenderer } from '3d-tiles-renderer';
-import { GoogleCloudAuthPlugin, GLTFExtensionsPlugin, ReorientationPlugin } from '3d-tiles-renderer/plugins';
+import { GoogleCloudAuthPlugin, GLTFExtensionsPlugin, TilesFadePlugin } from '3d-tiles-renderer/plugins';
 import { DRACOLoader } from 'three/addons/loaders/DRACOLoader.js';
+import { computeBoundsTree, disposeBoundsTree, acceleratedRaycast } from 'three-mesh-bvh';
 
+/* ============ setup / diagnostics ============ */
 const qs = new URLSearchParams(location.search);
 const KEY = qs.get('key');
-const err = m => { document.getElementById('err').textContent += m + '\n'; };
+const err = m => { const e = document.getElementById('err'); e.textContent = (m + '\n' + e.textContent).slice(0, 500); };
 if(!KEY){ err('missing ?key=API_KEY'); throw new Error('no key'); }
-addEventListener('error', e => err('ERR: ' + (e.message || e.reason)));
-addEventListener('unhandledrejection', e => err('REJ: ' + (e.reason && e.reason.message || e.reason)));
+addEventListener('error', e => err('ERR ' + (e.message||e.reason)));
+addEventListener('unhandledrejection', e => err('REJ ' + (e.reason && e.reason.message || e.reason)));
+const dbgEl = document.createElement('div'); dbgEl.id = 'dbgjson'; dbgEl.style.display = 'none'; document.body.appendChild(dbgEl);
 
-const renderer = new THREE.WebGLRenderer({ antialias: true });
+THREE.BufferGeometry.prototype.computeBoundsTree = computeBoundsTree;
+THREE.BufferGeometry.prototype.disposeBoundsTree = disposeBoundsTree;
+THREE.Mesh.prototype.raycast = acceleratedRaycast;
+
+const renderer = new THREE.WebGLRenderer({ antialias: true, powerPreference: 'high-performance' });
 renderer.setSize(innerWidth, innerHeight);
 renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
+renderer.toneMapping = THREE.ACESFilmicToneMapping;
+renderer.toneMappingExposure = 1.06;
 document.body.appendChild(renderer.domElement);
 
 const scene = new THREE.Scene();
-scene.background = new THREE.Color(0x86a4c8); // hazy day sky placeholder
-const camera = new THREE.PerspectiveCamera(50, innerWidth/innerHeight, 1, 20000);
-camera.position.set(300, 300, 300);
-camera.lookAt(0, 40, 0);
+scene.background = new THREE.Color(0x9fb4cd);
+scene.fog = new THREE.Fog(0xa8bacf, 900, 4200);
+const camera = new THREE.PerspectiveCamera(46, innerWidth/innerHeight, 1, 30000);
+camera.position.set(-520, 640, 620);
 
+const sun = new THREE.DirectionalLight(0xfff0dd, 2.4); sun.position.set(-320, 500, -180); scene.add(sun);
+scene.add(new THREE.HemisphereLight(0xc4d6ea, 0x8a857a, 1.25));
+
+/* ============ photorealistic tiles ============ */
 const DEG = Math.PI/180;
+const LAT0 = 35.6595, LON0 = 139.7005;
 const draco = new DRACOLoader();
 draco.setDecoderPath('https://cdn.jsdelivr.net/npm/three@0.170.0/examples/jsm/libs/draco/gltf/');
-
 const tiles = new TilesRenderer();
 tiles.registerPlugin(new GoogleCloudAuthPlugin({ apiToken: KEY, autoRefreshToken: true }));
 tiles.registerPlugin(new GLTFExtensionsPlugin({ dracoLoader: draco }));
-tiles.registerPlugin(new ReorientationPlugin({ lat: 35.6595*DEG, lon: 139.7005*DEG, height: 45, recenter: true }));
+tiles.registerPlugin(new TilesFadePlugin());
+tiles.setLatLonToYUp(LAT0*DEG, LON0*DEG);
 tiles.setCamera(camera);
 tiles.setResolutionFromRenderer(camera, renderer);
-tiles.errorTarget = 6;
+tiles.errorTarget = qs.has('hq') ? 6 : 10;
 scene.add(tiles.group);
+tiles.addEventListener('load-model', e => {
+  e.scene.traverse(o => { if(o.isMesh && o.geometry && !o.geometry.boundsTree){ try{ o.geometry.computeBoundsTree(); }catch(_){} } });
+});
 
-addEventListener('resize', () => {
-  camera.aspect = innerWidth/innerHeight;
+/* ============ utils ============ */
+function mulberry32(a){return function(){a|=0;a=a+0x6D2B79F5|0;let t=Math.imul(a^a>>>15,1|a);t=t+Math.imul(t^t>>>7,61|t)^t;return((t^t>>>14)>>>0)/4294967296}}
+const rng = mulberry32(20260706);
+const R = (a=1,b)=> b===undefined ? rng()*a : a+rng()*(b-a);
+const RI = (a,b)=> Math.floor(R(a,b+1));
+const pick = arr => arr[Math.floor(rng()*arr.length)];
+const clamp = (v,a,b)=> v<a?a:v>b?b:v;
+const lerp = (a,b,t)=> a+(b-a)*t;
+const smooth = t => t*t*(3-2*t);
+
+/* ============ real road graph (OpenStreetMap) ============ */
+const TD = await (await fetch('shibuya.json')).json();
+const ROADCLS = {
+  trunk:{w:21,l:2,v:14.5,rank:5}, primary:{w:16,l:2,v:13,rank:4}, secondary:{w:13,l:1,v:11.5,rank:3},
+  tertiary:{w:10,l:1,v:10,rank:2}, unclassified:{w:7,l:1,v:8,rank:1}, residential:{w:7,l:1,v:7.5,rank:1},
+  living_street:{w:5.5,l:1,v:5.5,rank:0},
+};
+const kOf = (x,z) => Math.round(x*2) + '|' + Math.round(z*2);
+const drivable = TD.roads.filter(w => ROADCLS[w.cls]);
+let edges = [];
+{
+  const occ = new Map();
+  for(const w of drivable){ const seen = new Set();
+    for(const p of w.p){ const k = kOf(p[0],p[1]); if(!seen.has(k)){ seen.add(k); occ.set(k,(occ.get(k)||0)+1); } } }
+  for(const w of drivable){
+    let cur = [w.p[0]];
+    for(let i=1;i<w.p.length;i++){
+      cur.push(w.p[i]);
+      const j = i < w.p.length-1 && occ.get(kOf(w.p[i][0],w.p[i][1])) >= 2;
+      if(j || i === w.p.length-1){ if(cur.length>=2) edges.push({pts:cur, cls:w.cls, one:w.one, lanesTag:w.lanes, wTag:w.w}); cur=[w.p[i]]; }
+    }
+  }
+}
+function polyLen(p){ let L=0; for(let i=1;i<p.length;i++) L+=Math.hypot(p[i][0]-p[i-1][0],p[i][1]-p[i-1][1]); return L; }
+for(const e of edges){
+  e.pts = e.pts.filter((p,i,a)=> i===0 || Math.hypot(p[0]-a[i-1][0],p[1]-a[i-1][1]) > 0.15);
+  const s = ROADCLS[e.cls];
+  e.len = polyLen(e.pts);
+  const tot = e.lanesTag || (e.one ? s.l : s.l*2);
+  e.lanesF = e.one ? Math.max(1,tot) : Math.max(1,Math.ceil(tot/2));
+  e.lanesB = e.one ? 0 : Math.max(1,Math.floor(tot/2));
+  e.width = Math.max(e.wTag||0, s.w, (e.lanesF+e.lanesB)*3.0);
+  e.laneW = e.width/(e.lanesF+e.lanesB);
+  e.spec = s;
+}
+edges = edges.filter(e => e.pts.length>=2 && e.len>3);
+function offsetPoly(pts, off){
+  const o = [];
+  for(let i=0;i<pts.length;i++){
+    const a = pts[Math.max(0,i-1)], b = pts[Math.min(pts.length-1,i+1)];
+    let dx=b[0]-a[0], dz=b[1]-a[1]; const l=Math.hypot(dx,dz)||1; dx/=l; dz/=l;
+    o.push([pts[i][0]+dz*off, pts[i][1]-dx*off]);
+  }
+  return o;
+}
+const cumOf = p => { const c=[0]; for(let i=1;i<p.length;i++) c.push(c[i-1]+Math.hypot(p[i][0]-p[i-1][0],p[i][1]-p[i-1][1])); return c; };
+const dirLanes = [];
+const nodeMap = new Map();
+function nodeOf(k,x,z){ let n=nodeMap.get(k); if(!n){ n={k,x,z,activeAxis:'z',switchedAt:-9,lastUse:{x:-9,z:-9},signal:false,r:4}; nodeMap.set(k,n);} return n; }
+for(const e of edges){
+  for(const dir of (e.one?[1]:[1,-1])){
+    const nL = dir>0?e.lanesF:e.lanesB;
+    for(let li=0; li<nL; li++){
+      const base = dir>0?e.pts:e.pts.slice().reverse();
+      const pts = offsetPoly(base, e.laneW*(li+0.5));
+      const cum = cumOf(pts);
+      const p0=base[0], p1=base[base.length-1];
+      const dxT=p1[0]-p0[0], dzT=p1[1]-p0[1];
+      const lane = { id:dirLanes.length, edge:e, cls:e.cls, pts, cum, len:cum[cum.length-1],
+        ys:new Float32Array(pts.length).fill(NaN), cars:[[]], nLanes:1, v0:e.spec.v, rank:e.spec.rank,
+        axis: Math.abs(dxT)>Math.abs(dzT)?'x':'z', n0:kOf(p0[0],p0[1]), n1:kOf(p1[0],p1[1]), next:[] };
+      dirLanes.push(lane);
+      nodeOf(lane.n0,p0[0],p0[1]); nodeOf(lane.n1,p1[0],p1[1]);
+    }
+  }
+  for(const end of [0,e.pts.length-1]){
+    const n = nodeMap.get(kOf(e.pts[end][0],e.pts[end][1]));
+    if(n) n.r = Math.max(n.r, e.width/2+1.2);
+  }
+}
+for(const s of TD.signals){
+  let best=null,bd=1e9;
+  for(const n of nodeMap.values()){ const d=(n.x-s[0])**2+(n.z-s[1])**2; if(d<bd){bd=d;best=n;} }
+  if(best && bd<400) best.signal = true;
+}
+function headAt(l, end){ const p=l.pts, i=end?p.length-1:0, j=end?p.length-2:1; return Math.atan2(p[i][0]-p[j][0], p[i][1]-p[j][1]); }
+for(const l of dirLanes){
+  const n = nodeMap.get(l.n1);
+  const hIn = headAt(l,true);
+  for(const o of dirLanes){
+    if(o.n0 !== l.n1) continue;
+    if(o.edge === l.edge && o.n1 === l.n0) continue;
+    const hOut = headAt(o,false);
+    let dh = hOut-hIn; while(dh>Math.PI)dh-=2*Math.PI; while(dh<-Math.PI)dh+=2*Math.PI;
+    const st = Math.abs(dh)<0.35, left = dh<-0.35;
+    l.next.push({ seg:o, turn:st?'S':(left?'L':'R'), w:(st?0.66:(left?0.2:0.14))*(0.5+o.rank*0.25) });
+  }
+}
+function makeConnector(a,b){
+  const P=a.pts,Q=b.pts, p0=P[P.length-1], p1=Q[0];
+  const h0=headAt(a,true), h1=headAt(b,false);
+  const d0=[Math.sin(h0),Math.cos(h0)], d1=[Math.sin(h1),Math.cos(h1)];
+  const det=d0[0]*(-d1[1])-(-d1[0])*d0[1];
+  let cx,cz;
+  if(Math.abs(det)>0.08){
+    const rx=p1[0]-p0[0], rz=p1[1]-p0[1];
+    const t=(rx*(-d1[1])-(-d1[0])*rz)/det;
+    if(t>0&&t<40){ cx=p0[0]+d0[0]*t; cz=p0[1]+d0[1]*t; }
+  }
+  if(cx===undefined){ cx=(p0[0]+p1[0])/2+d0[0]*1.5; cz=(p0[1]+p1[1])/2+d0[1]*1.5; }
+  let L=0,lx=p0[0],lz=p0[1];
+  for(let k=1;k<=8;k++){ const t=k/8,mt=1-t;
+    const x=mt*mt*p0[0]+2*mt*t*cx+t*t*p1[0], z=mt*mt*p0[1]+2*mt*t*cz+t*t*p1[1];
+    L+=Math.hypot(x-lx,z-lz); lx=x; lz=z; }
+  const y0 = laneY(a, a.len), y1 = laneY(b, 0);
+  return { x0:p0[0],z0:p0[1],cx,cz,x1:p1[0],z1:p1[1],len:Math.max(L,0.5), y0, y1 };
+}
+function laneSample(l,s,out){
+  const cum=l.cum, pts=l.pts, ss=clamp(s,0,l.len);
+  let lo=0,hi=cum.length-1;
+  while(hi-lo>1){ const m=(lo+hi)>>1; if(cum[m]<=ss)lo=m; else hi=m; }
+  const t=(ss-cum[lo])/Math.max(cum[lo+1]-cum[lo],1e-6);
+  const a=pts[lo],b=pts[lo+1];
+  out.x=a[0]+(b[0]-a[0])*t; out.z=a[1]+(b[1]-a[1])*t;
+  out.yaw=Math.atan2(b[0]-a[0],b[1]-a[1]);
+  const ya=l.ys[lo], yb=l.ys[lo+1];
+  out.y = isNaN(ya) ? (isNaN(yb)?GROUND_FALLBACK:yb) : (isNaN(yb)?ya:ya+(yb-ya)*t);
+  return out;
+}
+function laneY(l,s){ const o={x:0,y:0,z:0,yaw:0}; laneSample(l,s,o); return o.y; }
+const segs = dirLanes;
+const spawnable = segs.filter(l => l.len > 18);
+document.getElementById('vRoads').textContent = edges.length + ' edges';
+
+/* ============ terrain height sampling (raycast into photogrammetry) ============ */
+let GROUND_FALLBACK = 40;
+const raycaster = new THREE.Raycaster();
+raycaster.firstHitOnly = true;
+const DOWN = new THREE.Vector3(0,-1,0);
+const heightQueue = [];
+for(const l of dirLanes) for(let i=0;i<l.pts.length;i++) heightQueue.push([l,i]);
+// nearest-to-center first so the visible area lands correctly first
+heightQueue.sort((A,B)=> (A[0].pts[A[1]][0]**2+A[0].pts[A[1]][1]**2) - (B[0].pts[B[1]][0]**2+B[0].pts[B[1]][1]**2));
+let hqPtr = 0, refreshPtr = 0, groundSamples = [];
+function sampleHeights(budget){
+  let n = 0;
+  const origin = new THREE.Vector3();
+  while(n < budget && hqPtr < heightQueue.length){
+    const [l,i] = heightQueue[hqPtr];
+    origin.set(l.pts[i][0], 500, l.pts[i][1]);
+    raycaster.set(origin, DOWN);
+    const hit = raycaster.intersectObject(tiles.group, true)[0];
+    if(hit && hit.point.y > -50 && hit.point.y < 300){
+      l.ys[i] = hit.point.y + 0.25;
+      groundSamples.push(hit.point.y);
+      if(groundSamples.length === 60){
+        groundSamples.sort((a,b)=>a-b);
+        GROUND_FALLBACK = groundSamples[30] + 0.25;
+      }
+      hqPtr++;
+    } else { hqPtr++; } // keep NaN → fallback used
+    n++;
+  }
+  // continuous refinement pass (LOD improves over time)
+  while(n < budget && heightQueue.length){
+    const [l,i] = heightQueue[refreshPtr % heightQueue.length];
+    refreshPtr++;
+    origin.set(l.pts[i][0], 500, l.pts[i][1]);
+    raycaster.set(origin, DOWN);
+    const hit = raycaster.intersectObject(tiles.group, true)[0];
+    if(hit && hit.point.y > -50 && hit.point.y < 300){
+      const y = hit.point.y + 0.25;
+      l.ys[i] = isNaN(l.ys[i]) ? y : l.ys[i]*0.5 + y*0.5;
+    }
+    n++;
+  }
+}
+
+/* ============ traffic engine (IDM + signal-timed arbitration) ============ */
+const PROFILES = {
+  av:    { T:0.9, s0:1.9, aMax:2.5, bCom:2.8, react:0 },
+  human: { T:1.8, s0:2.6, aMax:1.6, bCom:2.0, react:0.65 },
+};
+let humanRatio = +(qs.get('human') ?? 0.5);
+const N_CARS = +(qs.get('cars') || 1000);
+const cars = [];
+const PALETTE = [0xf2f3f5,0xf2f3f5,0xe8e9eb,0x17181c,0x17181c,0x3c414c,0x8e939c,0xb9bdc4,0x27313f,0x412a2a,0x145731,0xc7b46a];
+function spawnCar(k){
+  for(let t=0;t<80;t++){
+    const s = spawnable[RI(0,spawnable.length-1)];
+    const pos = R(3, s.len-3);
+    let ok = true;
+    for(const o of s.cars[0]) if(Math.abs(o.s-pos)<8){ ok=false; break; }
+    if(!ok) continue;
+    const taxi = rng() < 0.07;
+    const car = { id:k, seg:s, lane:0, s:pos, v:R(3,8), prof: rng()<humanRatio?'human':'av',
+      v0base:R(0.85,1.1), color: taxi ? (rng()<0.5?0x18432e:0xd8b23a) : pick(PALETTE), taxi,
+      brake:false, percGap:50, percDv:0, reactT:0, distract:R(6,40), conn:null, nextChoice:null,
+      y:GROUND_FALLBACK, hero:false };
+    s.cars[0].push(car); s.cars[0].sort((a,b)=>a.s-b.s);
+    cars.push(car);
+    return car;
+  }
+  return null;
+}
+for(let k=0;k<N_CARS;k++) spawnCar(k);
+let hero = cars.find(c => c.seg.rank>=3 && c.seg.len>60) || cars[0];
+hero.hero = true; hero.prof = 'av'; hero.color = 0xAD002D; hero.taxi = false;
+const avShare = () => 1 - humanRatio;
+function nodeAllows(car, node, now){
+  const axis = car.seg.axis;
+  if(node.activeAxis === axis) return true;
+  const av = avShare();
+  const maxHold = lerp(6.5, 1.6, av*av), idleGap = lerp(1.7, 0.35, av*av);
+  if(now - node.switchedAt > maxHold || now - node.lastUse[node.activeAxis] > idleGap){
+    node.activeAxis = axis; node.switchedAt = now; return true;
+  }
+  return false;
+}
+function chooseNext(car){
+  const opts = car.seg.next;
+  if(!opts.length) return null;
+  if(car.hero){
+    let best=opts[0], bd=1e9;
+    for(const o of opts){
+      const en = nodeMap.get(o.seg.n1);
+      const d = Math.hypot(en.x,en.z) + (o.turn==='S'?-50:0) - o.seg.rank*22 + (o.seg.len<25?60:0);
+      if(d<bd){bd=d;best=o;}
+    }
+    return best;
+  }
+  let sum=0; for(const o of opts) sum+=o.w;
+  let r=rng()*sum;
+  for(const o of opts){ r-=o.w; if(r<=0) return o; }
+  return opts[opts.length-1];
+}
+let simTime = 0, flowCount = 0;
+function trafficStep(dt){
+  simTime += dt;
+  const now = simTime;
+  for(const s of segs){
+    const arr = s.cars[0];
+    for(let idx=0; idx<arr.length; idx++){
+      const car = arr[idx];
+      if(car.isPhantom) continue;
+      const P = PROFILES[car.prof];
+      const v0 = s.v0 * car.v0base;
+      let gap = 1e4, dv = 0;
+      if(idx < arr.length-1){ const l2=arr[idx+1]; gap=l2.s-car.s-4.4; dv=car.v-l2.v; }
+      else {
+        const rem = s.len - car.s;
+        const nx = car.nextChoice;
+        if(nx && nx.seg.cars[0].length){
+          const l2 = nx.seg.cars[0][0];
+          gap = rem + nodeMap.get(s.n1).r*2 + l2.s - 4.4; dv = car.v - l2.v;
+        }
+        const node = nodeMap.get(s.n1);
+        if(rem < 26 && node){
+          if(nodeAllows(car,node,now)) node.lastUse[s.axis] = now;
+          else if(rem-0.8 < gap){ gap = rem-0.8; dv = car.v; }
+        }
+      }
+      let eGap = gap, eDv = dv;
+      if(P.react > 0){
+        car.reactT -= dt;
+        if(car.reactT <= 0){ car.percGap=gap; car.percDv=dv; car.reactT = P.react*R(0.6,1.4); }
+        eGap = car.percGap; eDv = car.percDv;
+        car.distract -= dt;
+        if(car.distract < 0){ car.distract = R(10,45); car.v = Math.max(0, car.v - R(2,4.5)); }
+      }
+      eGap = Math.max(0.15, eGap);
+      const sStar = P.s0 + Math.max(0, car.v*P.T + (car.v*eDv)/(2*Math.sqrt(P.aMax*P.bCom)));
+      let acc = P.aMax * (1 - (car.v/v0)**4 - (sStar/eGap)**2);
+      acc = clamp(acc, -6.5, P.aMax);
+      car.brake = acc < -0.7;
+      car.v = Math.max(0, car.v + acc*dt);
+      car.s += car.v*dt;
+      car.odo = (car.odo||0) + car.v*dt;
+    }
+    for(let idx=arr.length-1; idx>=0; idx--){
+      const car = arr[idx];
+      if(car.s < s.len) continue;
+      if(car.isPhantom) continue;
+      if(!car.nextChoice) car.nextChoice = chooseNext(car);
+      const nx = car.nextChoice;
+      arr.splice(idx,1);
+      flowCount++;
+      if(nx){
+        car.conn = makeConnector(s, nx.seg);
+        car.seg = nx.seg; car.s = car.s - s.len - car.conn.len;
+        if(car.s > -0.01) car.s = 0.01;
+        car.nextChoice = null;
+        nx.seg.cars[0].push(car); nx.seg.cars[0].sort((a,b)=>a.s-b.s);
+      } else {
+        let ok = false;
+        for(let t2=0;t2<50 && !ok;t2++){
+          const ns = spawnable[Math.floor(Math.random()*spawnable.length)];
+          const pos = 3 + Math.random()*(ns.len-6);
+          let free = true;
+          for(const o of ns.cars[0]) if(Math.abs(o.s-pos)<8){ free=false; break; }
+          if(!free) continue;
+          car.seg = ns; car.s = pos; car.v = 3; car.conn = null;
+          ns.cars[0].push(car); ns.cars[0].sort((a,b)=>a.s-b.s);
+          ok = true;
+        }
+        if(!ok) car.seg = null;
+      }
+    }
+  }
+  for(const car of cars){
+    if(car.seg && !car.nextChoice && (car.seg.len-car.s)<40) car.nextChoice = chooseNext(car);
+  }
+}
+function carPose(car,out){
+  if(car.s >= 0){ laneSample(car.seg, car.s, out); }
+  else if(car.conn){
+    const c=car.conn, t=clamp(1+car.s/c.len,0,1), mt=1-t;
+    out.x = mt*mt*c.x0+2*mt*t*c.cx+t*t*c.x1;
+    out.z = mt*mt*c.z0+2*mt*t*c.cz+t*t*c.z1;
+    const dx=2*mt*(c.cx-c.x0)+2*t*(c.x1-c.cx), dz=2*mt*(c.cz-c.z0)+2*t*(c.z1-c.cz);
+    out.yaw = Math.atan2(dx,dz);
+    out.y = lerp(c.y0, c.y1, smooth(t));
+  } else laneSample(car.seg, 0, out);
+  return out;
+}
+
+/* ============ car rendering (day, instanced, wheels, soft shadows) ============ */
+const N = cars.length;
+const carsG = new THREE.Group(); scene.add(carsG);
+let bodyIM, cabinIM, wheelIM, shadowIM, taxiIM;
+{
+  const bodyGeo = new THREE.BoxGeometry(1.78, 0.6, 4.25); bodyGeo.translate(0, 0.62, 0);
+  const cabinGeo = new THREE.BoxGeometry(1.6, 0.5, 2.1); cabinGeo.translate(0, 1.12, -0.2);
+  bodyIM = new THREE.InstancedMesh(bodyGeo, new THREE.MeshStandardMaterial({ roughness:0.35, metalness:0.72 }), N);
+  cabinIM = new THREE.InstancedMesh(cabinGeo, new THREE.MeshStandardMaterial({ color:0x161a20, roughness:0.12, metalness:0.9 }), N);
+  const whGeo = new THREE.CylinderGeometry(0.32,0.32,0.22,10); whGeo.rotateZ(Math.PI/2);
+  wheelIM = new THREE.InstancedMesh(whGeo, new THREE.MeshStandardMaterial({ color:0x101114, roughness:0.9 }), N*4);
+  const shCv = document.createElement('canvas'); shCv.width=shCv.height=64;
+  const sg = shCv.getContext('2d');
+  const gr = sg.createRadialGradient(32,32,4,32,32,30);
+  gr.addColorStop(0,'rgba(0,0,0,0.42)'); gr.addColorStop(0.7,'rgba(0,0,0,0.18)'); gr.addColorStop(1,'rgba(0,0,0,0)');
+  sg.fillStyle=gr; sg.fillRect(0,0,64,64);
+  const shTex = new THREE.CanvasTexture(shCv);
+  const shGeo = new THREE.PlaneGeometry(2.9, 5.6); shGeo.rotateX(-Math.PI/2);
+  shadowIM = new THREE.InstancedMesh(shGeo, new THREE.MeshBasicMaterial({ map:shTex, transparent:true, depthWrite:false }), N);
+  shadowIM.renderOrder = 1;
+  const tSignGeo = new THREE.BoxGeometry(0.34,0.16,0.34); tSignGeo.translate(0, 1.45, -0.2);
+  taxiIM = new THREE.InstancedMesh(tSignGeo, new THREE.MeshStandardMaterial({ color:0xf2ede0, emissive:0x776a30, emissiveIntensity:0.4 }), N);
+  for(const m of [bodyIM,cabinIM,wheelIM,shadowIM,taxiIM]) m.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
+  bodyIM.instanceColor = new THREE.InstancedBufferAttribute(new Float32Array(N*3), 3);
+  carsG.add(bodyIM, cabinIM, wheelIM, shadowIM, taxiIM);
+}
+/* hero highlight mesh */
+const heroGroup = new THREE.Group();
+{
+  const bmat = new THREE.MeshStandardMaterial({ color:0xAD002D, roughness:0.32, metalness:0.6 });
+  const body = new THREE.Mesh(new THREE.BoxGeometry(1.82,0.62,4.3), bmat); body.position.y = 0.62;
+  const cab = new THREE.Mesh(new THREE.BoxGeometry(1.62,0.52,2.14), new THREE.MeshStandardMaterial({ color:0x14171c, roughness:0.1, metalness:0.9 })); cab.position.set(0,1.13,-0.2);
+  heroGroup.add(body, cab);
+  heroGroup.userData.wheels = [];
+  const hwG = new THREE.CylinderGeometry(0.33,0.33,0.24,12); hwG.rotateZ(Math.PI/2);
+  for(const [wx,wz] of [[-0.78,1.36],[0.78,1.36],[-0.78,-1.36],[0.78,-1.36]]){
+    const w = new THREE.Mesh(hwG, new THREE.MeshStandardMaterial({ color:0x0c0d10, roughness:0.9 }));
+    w.position.set(wx,0.33,wz); heroGroup.add(w); heroGroup.userData.wheels.push(w);
+  }
+  scene.add(heroGroup);
+}
+const _m=new THREE.Matrix4(), _q=new THREE.Quaternion(), _e=new THREE.Euler(), _v=new THREE.Vector3(), _s=new THREE.Vector3(1,1,1), _c=new THREE.Color();
+const WOFF = [[-0.76,1.35],[0.76,1.35],[-0.76,-1.35],[0.76,-1.35]];
+const pose = {x:0,y:0,z:0,yaw:0};
+function updateCars(dt){
+  for(let k=0;k<cars.length;k++){
+    const car = cars[k];
+    if(!car.seg){ _v.set(0,-500,0); _m.setPosition(_v);
+      bodyIM.setMatrixAt(k,_m); cabinIM.setMatrixAt(k,_m); shadowIM.setMatrixAt(k,_m); taxiIM.setMatrixAt(k,_m);
+      for(let w=0;w<4;w++) wheelIM.setMatrixAt(k*4+w,_m); continue; }
+    if(car.hero && heroCtl.free){ pose.x=heroCtl.x; pose.z=heroCtl.z; pose.yaw=heroCtl.yaw; pose.y=heroCtl.y; }
+    else carPose(car, pose);
+    car.ySm = car.ySm === undefined ? pose.y : lerp(car.ySm, pose.y, clamp(dt*6,0,1));
+    const y = car.ySm;
+    car.px = pose.x; car.pz = pose.z; car.py = y; car.pyaw = pose.yaw;
+    let dyaw = pose.yaw - (car.pYawL ?? pose.yaw);
+    while(dyaw>Math.PI)dyaw-=2*Math.PI; while(dyaw<-Math.PI)dyaw+=2*Math.PI;
+    const yr = dyaw/Math.max(dt,1e-3);
+    const accL = (car.v - (car.pVL ?? car.v))/Math.max(dt,1e-3);
+    car.pYawL = pose.yaw; car.pVL = car.v;
+    car.roll = lerp(car.roll||0, clamp(yr*car.v*0.015,-0.05,0.05), clamp(dt*7,0,1));
+    car.pitch = lerp(car.pitch||0, clamp(-accL*0.011,-0.04,0.04), clamp(dt*5,0,1));
+    car.steerV = lerp(car.steerV||0, clamp(Math.atan2(2.7*yr, Math.max(car.v,1.2)),-0.55,0.55), clamp(dt*9,0,1));
+    _e.set(car.pitch, pose.yaw, car.roll, 'YXZ'); _q.setFromEuler(_e);
+    _v.set(pose.x, y, pose.z);
+    if(car.hero){
+      heroGroup.position.set(pose.x, y, pose.z);
+      heroGroup.rotation.set(car.pitch, pose.yaw, car.roll, 'YXZ');
+      const spin = (car.odo||0)/0.33;
+      heroGroup.userData.wheels.forEach((w,wi)=> w.rotation.set(spin, wi<2?car.steerV:0, 0, 'YXZ'));
+      _v.y = -500;
+    }
+    _m.compose(_v,_q,_s);
+    bodyIM.setMatrixAt(k,_m); cabinIM.setMatrixAt(k,_m);
+    if(car.hero) _v.y = y;
+    _c.setHex(car.color); bodyIM.setColorAt(k,_c);
+    // shadow blob on ground
+    _e.set(0,pose.yaw,0); _q.setFromEuler(_e);
+    _v.set(pose.x, y+0.05, pose.z); _m.compose(_v,_q,_s);
+    shadowIM.setMatrixAt(k, car.hero ? _m : _m);
+    // taxi sign
+    if(car.taxi && !car.hero){ _e.set(0,pose.yaw,0); _q.setFromEuler(_e); _v.set(pose.x,y,pose.z); _m.compose(_v,_q,_s); taxiIM.setMatrixAt(k,_m); }
+    else { _v.set(0,-500,0); _m.setPosition(_v); taxiIM.setMatrixAt(k,_m); }
+    // wheels
+    const spin = (car.odo||0)/0.32;
+    for(let wi=0;wi<4;wi++){
+      if(car.hero){ _v.set(0,-500,0); _m.setPosition(_v); wheelIM.setMatrixAt(k*4+wi,_m); continue; }
+      const [ox,oz] = WOFF[wi];
+      const fx=Math.sin(pose.yaw), fz=Math.cos(pose.yaw), lx=Math.cos(pose.yaw), lz=-Math.sin(pose.yaw);
+      _v.set(pose.x+lx*ox+fx*oz, y+0.32, pose.z+lz*ox+fz*oz);
+      _e.set(spin, pose.yaw+(wi<2?car.steerV:0), 0, 'YXZ'); _q.setFromEuler(_e);
+      _m.compose(_v,_q,_s);
+      wheelIM.setMatrixAt(k*4+wi,_m);
+    }
+  }
+  for(const m of [bodyIM,cabinIM,wheelIM,shadowIM,taxiIM]) m.instanceMatrix.needsUpdate = true;
+  bodyIM.instanceColor.needsUpdate = true;
+}
+
+/* ============ neural driver (imitation learning on photoreal pixels) ============ */
+const NNCFG = { W:48, H:16, sizes:[48*16+1,48,24,2], lr:0.004, mom:0.9, batch:16, ksteps:4, buf:4096 };
+function makeNN(){
+  const L = NNCFG.sizes.length-1, W=[],b=[],vW=[],vb=[],act=[];
+  let r = mulberry32(1234567);
+  const g = ()=>{ let u=0,v=0; while(!u)u=r(); while(!v)v=r(); return Math.sqrt(-2*Math.log(u))*Math.cos(2*Math.PI*v); };
+  for(let l=0;l<L;l++){
+    const nI=NNCFG.sizes[l], nO=NNCFG.sizes[l+1];
+    const w=new Float32Array(nI*nO); const sc=Math.sqrt(2/nI);
+    for(let i=0;i<w.length;i++) w[i]=g()*sc;
+    W.push(w); b.push(new Float32Array(nO)); vW.push(new Float32Array(nI*nO)); vb.push(new Float32Array(nO)); act.push(new Float32Array(nO));
+  }
+  return {W,b,vW,vb,act,steps:0,loss:1,hist:[]};
+}
+let nn = makeNN();
+function nnForward(x){
+  let inp = x;
+  for(let l=0;l<nn.W.length;l++){
+    const w=nn.W[l], bb=nn.b[l], out=nn.act[l], nI=NNCFG.sizes[l], nO=NNCFG.sizes[l+1];
+    for(let j=0;j<nO;j++){ let s2=bb[j]; const off=j*nI; for(let i=0;i<nI;i++) s2+=w[off+i]*inp[i]; out[j]=Math.tanh(s2); }
+    inp = out;
+  }
+  return nn.act[nn.W.length-1];
+}
+function nnTrain(samples){
+  const L=nn.W.length;
+  const gW=nn.W.map(w=>new Float32Array(w.length)), gb=nn.b.map(b=>new Float32Array(b.length));
+  let loss=0; const acts=[];
+  for(const {x,y} of samples){
+    let inp=x; acts.length=0; acts.push(x);
+    for(let l=0;l<L;l++){
+      const w=nn.W[l], bb=nn.b[l], nI=NNCFG.sizes[l], nO=NNCFG.sizes[l+1];
+      const out=new Float32Array(nO);
+      for(let j=0;j<nO;j++){ let s2=bb[j]; const off=j*nI; for(let i=0;i<nI;i++) s2+=w[off+i]*inp[i]; out[j]=Math.tanh(s2); }
+      acts.push(out); inp=out;
+    }
+    let delta = new Float32Array(acts[L].length);
+    for(let j=0;j<delta.length;j++){ const e2=acts[L][j]-y[j]; loss+=e2*e2; delta[j]=2*e2*(1-acts[L][j]**2); }
+    for(let l=L-1;l>=0;l--){
+      const nI=NNCFG.sizes[l], nO=NNCFG.sizes[l+1], a=acts[l], w=nn.W[l];
+      for(let j=0;j<nO;j++){ const off=j*nI, d=delta[j]; gb[l][j]+=d; for(let i=0;i<nI;i++) gW[l][off+i]+=d*a[i]; }
+      if(l>0){
+        const nd=new Float32Array(nI);
+        for(let i=0;i<nI;i++){ let s2=0; for(let j=0;j<nO;j++) s2+=w[j*nI+i]*delta[j]; nd[i]=s2*(1-a[i]**2); }
+        delta=nd;
+      }
+    }
+  }
+  const n=samples.length, lr=NNCFG.lr/(1+nn.steps/4000);
+  for(let l=0;l<L;l++){
+    const w=nn.W[l],g2=gW[l],v2=nn.vW[l];
+    for(let i=0;i<w.length;i++){ v2[i]=NNCFG.mom*v2[i]-lr*g2[i]/n; w[i]+=v2[i]; }
+    const bb=nn.b[l],gbb=gb[l],vbb=nn.vb[l];
+    for(let i=0;i<bb.length;i++){ vbb[i]=NNCFG.mom*vbb[i]-lr*gbb[i]/n; bb[i]+=vbb[i]; }
+  }
+  nn.steps++;
+  return loss/(n*2);
+}
+const replay = { X:[], Y:[], cap:NNCFG.buf, ptr:0,
+  push(x,y){ if(this.X.length<this.cap){this.X.push(x);this.Y.push(y);} else {this.X[this.ptr]=x;this.Y[this.ptr]=y;this.ptr=(this.ptr+1)%this.cap;} },
+  sample(n){ const o=[]; for(let k=0;k<n;k++){ const i=Math.floor(Math.random()*this.X.length); o.push({x:this.X[i],y:this.Y[i]}); } return o; } };
+const heroCtl = { free:false, x:0,y:40,z:0,yaw:0,v:0,steer:0, path:[], segQueue:[], pathS:0,
+  autonomy:0, recoverT:0, sinceTakeover:0, takeovers:0, lastOut:[0,0], teach:[0,0], eLat:0 };
+function heroActivate(){
+  if(heroCtl.free) return;
+  heroCtl.free = true;
+  const arr = hero.seg.cars[0];
+  const i = arr.indexOf(hero); if(i>=0) arr.splice(i,1);
+  carPose(hero, pose);
+  heroCtl.x=pose.x; heroCtl.z=pose.z; heroCtl.y=pose.y; heroCtl.yaw=pose.yaw; heroCtl.v=hero.v;
+  heroCtl.segQueue=[{seg:hero.seg}]; heroCtl.pathS=Math.max(0,hero.s);
+  rebuildPath();
+}
+function rebuildPath(){
+  const P = heroCtl.path; P.length = 0;
+  let guard=0, qi=0;
+  let seg = heroCtl.segQueue[0].seg, s = heroCtl.pathS||0;
+  const pt = {x:0,y:0,z:0,yaw:0};
+  while(P.length<160 && guard++<4000){
+    if(s <= seg.len){
+      laneSample(seg,s,pt);
+      P.push({x:pt.x,y:pt.y,z:pt.z,seg,s});
+      s += 2.2;
+    } else {
+      qi++;
+      if(qi >= heroCtl.segQueue.length){
+        const ch = chooseNext({hero:true, seg:heroCtl.segQueue[heroCtl.segQueue.length-1].seg});
+        if(!ch) break;
+        heroCtl.segQueue.push({seg:ch.seg});
+      }
+      const nx = heroCtl.segQueue[qi].seg;
+      const cn = makeConnector(seg, nx);
+      for(let k=1;k<=5;k++){
+        const t=k/6, mt=1-t;
+        P.push({ x:mt*mt*cn.x0+2*mt*t*cn.cx+t*t*cn.x1, z:mt*mt*cn.z0+2*mt*t*cn.cz+t*t*cn.z1,
+                 y:lerp(cn.y0,cn.y1,t), seg:nx, s:0, conn:true });
+      }
+      seg = nx; s = 0.5;
+    }
+  }
+}
+function heroTeacher(dt){
+  const P = heroCtl.path;
+  if(P.length < 8) rebuildPath();
+  let bi=0, bd=1e9;
+  for(let i=0;i<Math.min(P.length,40);i++){
+    const d=(P[i].x-heroCtl.x)**2+(P[i].z-heroCtl.z)**2;
+    if(d<bd){bd=d;bi=i;}
+  }
+  if(bi>6){ P.splice(0,bi-6); bi=6; }
+  if(P.length<60){
+    const tail=P[P.length-1];
+    heroCtl.pathS=tail.s; heroCtl.segQueue=[{seg:tail.seg}];
+    const saved=P.slice();
+    rebuildPath();
+    heroCtl.path.splice(0,0,...saved.slice(0,-1));
+    if(heroCtl.path.length>220) heroCtl.path.splice(0,heroCtl.path.length-220);
+  }
+  const cur=P[bi], nx1=P[Math.min(bi+1,P.length-1)];
+  const tx=nx1.x-cur.x, tz=nx1.z-cur.z, tl=Math.hypot(tx,tz)||1;
+  heroCtl.eLat = ((heroCtl.x-cur.x)*tz-(heroCtl.z-cur.z)*tx)/tl*-1;
+  const Ld = clamp(3.5+0.7*heroCtl.v, 5, 15);
+  let ti=bi, acc2=0;
+  while(ti<P.length-1 && acc2<Ld){ acc2+=Math.hypot(P[ti+1].x-P[ti].x,P[ti+1].z-P[ti].z); ti++; }
+  const tgt=P[ti];
+  const fx=Math.sin(heroCtl.yaw), fz=Math.cos(heroCtl.yaw);
+  const dx=tgt.x-heroCtl.x, dz=tgt.z-heroCtl.z;
+  const local=Math.atan2(dx*fz-dz*fx, dx*fx+dz*fz);
+  const steerT=clamp(Math.atan2(2*2.7*Math.sin(local),Ld)/0.55,-1,1);
+  const seg=cur.seg, sNow=cur.s;
+  let gap=1e4, dv=0;
+  for(const o of seg.cars[0]) if(o.s>sNow+0.5){ gap=o.s-sNow-4.4; dv=heroCtl.v-o.v; break; }
+  const rem=seg.len-sNow;
+  if(rem<26 && !cur.conn){
+    const node=nodeMap.get(seg.n1);
+    if(node && !nodeAllows({seg},node,simTime)){ if(rem-0.8<gap){gap=rem-0.8;dv=heroCtl.v;} }
+    else if(node) node.lastUse[seg.axis]=simTime;
+  }
+  const P0=PROFILES.av, v0=seg.v0*0.95;
+  gap=Math.max(0.2,gap);
+  const sStar=P0.s0+Math.max(0,heroCtl.v*P0.T+(heroCtl.v*dv)/(2*Math.sqrt(P0.aMax*P0.bCom)));
+  const accT=clamp(P0.aMax*(1-(heroCtl.v/v0)**4-(sStar/gap)**2)/2.5,-1,1);
+  heroCtl.teach=[steerT,accT];
+  // ground height under hero from path
+  heroCtl.yTarget = cur.y;
+  return heroCtl.teach;
+}
+function heroPhysics(steer, accel, dt){
+  heroCtl.steer = lerp(heroCtl.steer, steer*0.55, clamp(dt*8,0,1));
+  heroCtl.v = clamp(heroCtl.v + accel*2.5*dt, 0, 16);
+  heroCtl.yaw += (heroCtl.v/2.7)*Math.tan(heroCtl.steer)*dt;
+  heroCtl.x += Math.sin(heroCtl.yaw)*heroCtl.v*dt;
+  heroCtl.z += Math.cos(heroCtl.yaw)*heroCtl.v*dt;
+  heroCtl.y = lerp(heroCtl.y, heroCtl.yTarget ?? heroCtl.y, clamp(dt*5,0,1));
+  heroCtl.sinceTakeover += heroCtl.v*dt;
+  hero.v = heroCtl.v; hero.odo = (hero.odo||0) + heroCtl.v*dt;
+}
+const povRT = new THREE.WebGLRenderTarget(96,32);
+const povCam = new THREE.PerspectiveCamera(105,3,0.5,400);
+const povBuf = new Uint8Array(96*32*4);
+const povInput = new Float32Array(NNCFG.sizes[0]);
+function readPOV(){
+  const fx=Math.sin(heroCtl.yaw), fz=Math.cos(heroCtl.yaw);
+  povCam.position.set(heroCtl.x+fx*2.0, heroCtl.y+1.35, heroCtl.z+fz*2.0);
+  povCam.lookAt(heroCtl.x+fx*40, heroCtl.y+0.4, heroCtl.z+fz*40);
+  renderer.setRenderTarget(povRT);
+  renderer.render(scene, povCam);
+  renderer.setRenderTarget(null);
+  renderer.readRenderTargetPixels(povRT,0,0,96,32,povBuf);
+  for(let y2=0;y2<16;y2++) for(let x2=0;x2<48;x2++){
+    let a=0;
+    for(let sy=0;sy<2;sy++) for(let sx=0;sx<2;sx++){
+      const o=((31-(y2*2+sy))*96+(x2*2+sx))*4;
+      a += povBuf[o]*0.35+povBuf[o+1]*0.45+povBuf[o+2]*0.2;
+    }
+    povInput[y2*48+x2] = Math.sqrt(clamp(a/(4*255),0,1))*2-1;
+  }
+  povInput[48*16] = heroCtl.v/16*2-1;
+  return povInput;
+}
+const heroPhantom = { s:0, v:0, isPhantom:true };
+let phantomLoc = null;
+function neuralStep(dt){
+  heroActivate();
+  const teach = heroTeacher(dt);
+  const x = readPOV();
+  const out = nnForward(x);
+  heroCtl.lastOut = [out[0], out[1]];
+  if(Math.abs(heroCtl.eLat) > 1.7 && heroCtl.recoverT <= 0){ heroCtl.recoverT = 2.5; heroCtl.takeovers++; heroCtl.sinceTakeover = 0; }
+  if(heroCtl.recoverT > 0) heroCtl.recoverT -= dt;
+  const target = heroCtl.recoverT > 0 ? 0 : clamp(1.15 - nn.loss*9, 0.15, 1);
+  heroCtl.autonomy = lerp(heroCtl.autonomy, target, clamp(dt*1.5,0,1));
+  const a = heroCtl.autonomy;
+  heroPhysics((1-a)*teach[0]+a*out[0], (1-a)*teach[1]+a*out[1], dt);
+  replay.push(Float32Array.from(x), Float32Array.from(teach));
+  if(replay.X.length > 64){
+    let acc=0;
+    for(let k=0;k<NNCFG.ksteps;k++) acc += nnTrain(replay.sample(NNCFG.batch));
+    nn.loss = nn.loss*0.97 + (acc/NNCFG.ksteps)*0.03;
+    if(nn.steps % 12 === 0){ nn.hist.push(nn.loss); if(nn.hist.length>160) nn.hist.shift(); }
+  }
+  const P = heroCtl.path;
+  if(P.length){
+    if(phantomLoc && phantomLoc.seg !== P[0].seg){
+      const arr = phantomLoc.seg.cars[0];
+      const i = arr.indexOf(heroPhantom); if(i>=0) arr.splice(i,1);
+      phantomLoc = null;
+    }
+    if(!phantomLoc){ phantomLoc = { seg:P[0].seg }; P[0].seg.cars[0].push(heroPhantom); }
+    heroPhantom.s = P[0].s; heroPhantom.v = heroCtl.v;
+    phantomLoc.seg.cars[0].sort((a2,b2)=>a2.s-b2.s);
+  }
+}
+/* teacher-driven hero when brain panel off but chase running */
+function heroAutoStep(dt){
+  heroActivate();
+  heroTeacher(dt);
+  heroPhysics(heroCtl.teach[0], heroCtl.teach[1], dt);
+}
+
+/* ============ brain HUD ============ */
+const povV = document.getElementById('pov').getContext('2d');
+const netV = document.getElementById('net').getContext('2d');
+const lossV = document.getElementById('lossc').getContext('2d');
+function drawBrain(){
+  for(let y2=0;y2<16;y2++) for(let x2=0;x2<48;x2++){
+    const v=(povInput[y2*48+x2]+1)/2, g=Math.round(v*255);
+    povV.fillStyle=`rgb(${g},${g},${g})`;
+    povV.fillRect(x2*6,y2*6,6.5,6.5);
+  }
+  netV.clearRect(0,0,288,130);
+  const cols=[
+    {n:16,get:i=>{let a=0;for(let k=0;k<48;k++)a+=povInput[i*48+k];return Math.tanh(a/24);}},
+    {n:24,get:i=>nn.act[0][i*2]},
+    {n:24,get:i=>nn.act[1][i]},
+    {n:2,get:i=>nn.act[2][i]}];
+  const X=[14,104,194,272];
+  netV.globalAlpha=0.2;
+  for(let c=0;c<3;c++){
+    for(let j=0;j<cols[c+1].n;j++){
+      const a1=cols[c+1].get(j);
+      if(Math.abs(a1)<0.25) continue;
+      const y1=8+(114)*(cols[c+1].n===1?0.5:j/(cols[c+1].n-1));
+      for(let i=0;i<cols[c].n;i+=2){
+        const a0=cols[c].get(i);
+        if(Math.abs(a0)<0.3) continue;
+        const y0=8+114*(i/(cols[c].n-1));
+        netV.strokeStyle = a0*a1>0 ? '#AD002D' : '#3a4358';
+        netV.beginPath(); netV.moveTo(X[c],y0); netV.lineTo(X[c+1],y1); netV.stroke();
+      }
+    }
+  }
+  netV.globalAlpha=1;
+  for(let c=0;c<4;c++){
+    for(let i=0;i<cols[c].n;i++){
+      const y=8+114*(cols[c].n===1?0.5:i/(cols[c].n-1));
+      const a=cols[c].get(i), m=clamp(Math.abs(a),0,1);
+      netV.beginPath(); netV.arc(X[c],y,c===3?5:3,0,7);
+      netV.fillStyle = a>0 ? `rgba(${120+135*m|0},20,45,${0.3+0.7*m})` : `rgba(60,80,120,${0.3+0.7*m})`;
+      netV.fill();
+    }
+  }
+  lossV.clearRect(0,0,288,40);
+  lossV.strokeStyle='#AD002D'; lossV.lineWidth=1.5; lossV.beginPath();
+  const mx=Math.max(0.05,...nn.hist);
+  nn.hist.forEach((v,i)=>{ const x2=i/159*288, y2=37-(v/mx)*34; i?lossV.lineTo(x2,y2):lossV.moveTo(x2,y2); });
+  lossV.stroke();
+  document.getElementById('vLoss').textContent = nn.loss.toFixed(4);
+  document.getElementById('vSteps').textContent = nn.steps.toLocaleString();
+  document.getElementById('vTake').textContent = heroCtl.takeovers;
+  const ap = Math.round(heroCtl.autonomy*100);
+  document.getElementById('vAut').textContent = ap+'%';
+  document.getElementById('autfill').style.width = ap+'%';
+}
+
+/* ============ cinema director ============ */
+const SHOTS = [
+  { id:'DESCENT', sub:'real Shibuya — Google Photorealistic 3D Tiles', dur:9, fov:40,
+    cam:t=>[lerp(-480,-70,smooth(t)), lerp(620,150,smooth(t)), lerp(600,170,smooth(t))], look:t=>[0,42,0] },
+  { id:'THE CROSSING', sub:'1,000 vehicles · real traffic physics on real roads', dur:12, fov:44,
+    cam:t=>{ const a=0.9+t*0.55; return [Math.cos(a)*165, 128+10*Math.sin(t*3), Math.sin(a)*165]; }, look:t=>[0,40,0] },
+  { id:'STREET LEVEL', sub:'Intelligent Driver Model + signal-timed intersections', dur:10, fov:30,
+    cam:t=>[36+t*6, GROUND()+13, 58-t*4], look:t=>[-30,GROUND()+4,-30] },
+  { id:'FOLLOW', sub:'the crimson car — autonomous lane driving', dur:12, fov:36, hero:true },
+  { id:'BRAIN', sub:'a neural net learning to drive from photoreal pixels', dur:16, fov:42, hero:true, brain:true },
+  { id:'ASCEND', sub:'NEURAL TOKYO — one browser tab, the real city', dur:11, fov:46,
+    cam:t=>[lerp(-60,320,smooth(t)), lerp(140,720,smooth(t)), lerp(160,-540,smooth(t))], look:t=>[0,50,0] },
+];
+function GROUND(){ return GROUND_FALLBACK; }
+let shotIdx = qs.has('shot') ? +qs.get('shot') : 0;
+let shotT = 0, autoPlay = !qs.has('shot');
+const camPos = new THREE.Vector3(-520,640,620), camLook = new THREE.Vector3(0,40,0);
+const dots = [];
+{
+  const bar = document.getElementById('shots');
+  SHOTS.forEach((s,i)=>{
+    const d = document.createElement('div'); d.className='dot'+(i===shotIdx?' on':'');
+    d.onclick = ()=>{ shotIdx=i; shotT=0; autoPlay=false; };
+    bar.appendChild(d); dots.push(d);
+  });
+}
+addEventListener('keydown', e=>{
+  const n = +e.key;
+  if(n>=1 && n<=SHOTS.length){ shotIdx=n-1; shotT=0; autoPlay=false; }
+  if(e.key===' '){ autoPlay=!autoPlay; }
+});
+function director(dt, t){
+  const S = SHOTS[shotIdx];
+  shotT += dt;
+  if(autoPlay && shotT > S.dur){ shotIdx = (shotIdx+1) % SHOTS.length; if(shotIdx===0) shotIdx=1; shotT = 0; }
+  const S2 = SHOTS[shotIdx];
+  dots.forEach((d,i)=>d.classList.toggle('on', i===shotIdx));
+  document.getElementById('chapName').textContent = (shotIdx+1) + ' · ' + S2.id;
+  document.getElementById('chapSub').textContent = S2.sub;
+  const brainOn = !!S2.brain;
+  document.getElementById('brain').style.display = brainOn ? 'block' : 'none';
+  const tt = clamp(shotT / S2.dur, 0, 1);
+  let px,py,pz,lx,ly,lz;
+  if(S2.hero){
+    const hp = heroCtl;
+    const fx=Math.sin(hp.yaw), fz=Math.cos(hp.yaw);
+    const back = brainOn ? 13 : 22, h = brainOn ? 5 : 11, side = brainOn ? 3.5 : 6;
+    px = hp.x - fx*back + Math.cos(hp.yaw)*side; py = hp.y + h; pz = hp.z - fz*back - Math.sin(hp.yaw)*side;
+    lx = hp.x + fx*14; ly = hp.y + 1.2; lz = hp.z + fz*14;
+  } else {
+    const c = S2.cam(tt), l = S2.look(tt);
+    px=c[0];py=c[1];pz=c[2]; lx=l[0];ly=l[1];lz=l[2];
+  }
+  // gentle handheld
+  py += Math.sin(t*0.7)*0.6; px += Math.sin(t*0.43)*0.5;
+  const k = 1 - Math.exp(-dt*2.2);
+  camPos.lerp(_v.set(px,py,pz), k);
+  camLook.lerp(new THREE.Vector3(lx,ly,lz), k);
+  camera.position.copy(camPos);
+  camera.lookAt(camLook);
+  camera.fov = lerp(camera.fov, S2.fov, k);
   camera.updateProjectionMatrix();
+  return brainOn;
+}
+
+/* ============ recorder (?record=45 → auto-download webm) ============ */
+let recorder = null;
+if(qs.has('record')){
+  const dur = +(qs.get('record')||45);
+  setTimeout(()=>{
+    document.getElementById('recdot').style.display='flex';
+    const stream = renderer.domElement.captureStream(60);
+    const mime = MediaRecorder.isTypeSupported('video/webm;codecs=vp9') ? 'video/webm;codecs=vp9' : 'video/webm';
+    recorder = new MediaRecorder(stream, { mimeType:mime, videoBitsPerSecond: 14_000_000 });
+    const chunks = [];
+    recorder.ondataavailable = e=>chunks.push(e.data);
+    recorder.onstop = ()=>{
+      const a = document.createElement('a');
+      a.href = URL.createObjectURL(new Blob(chunks,{type:'video/webm'}));
+      a.download = 'neural-tokyo-live.webm';
+      a.click();
+      document.getElementById('recdot').style.display='none';
+    };
+    recorder.start();
+    setTimeout(()=>recorder.stop(), dur*1000);
+  }, 4000);
+}
+
+/* ============ main loop ============ */
+addEventListener('resize', ()=>{
+  camera.aspect = innerWidth/innerHeight; camera.updateProjectionMatrix();
   renderer.setSize(innerWidth, innerHeight);
   tiles.setResolutionFromRenderer(camera, renderer);
 });
-
-const stat = document.getElementById('stat');
-let t0 = performance.now();
+window.__dbgDom = () => dbgEl.textContent;
+let t0 = performance.now(), lastT = 0, frame = 0, lastFlowT = 0, lastFlowC = 0, flowRate = 0, loaded = false;
+{
+  const warm = +(qs.get('t') || 25);
+  for(let k=0;k<warm*30;k++) trafficStep(1/30);
+}
 function loop(){
   requestAnimationFrame(loop);
-  const t = (performance.now() - t0)/1000;
-  const qsShot = qs.get('cam');
-  if(qsShot !== 'fixed'){
-    const ang = t*0.06 + 0.8;
-    const rad = 340, h = 230;
-    camera.position.set(Math.cos(ang)*rad, h, Math.sin(ang)*rad);
-    camera.lookAt(0, 30, 0);
-  }
+  const t = (performance.now()-t0)/1000;
+  const dt = Math.min(t-lastT, 0.1); lastT = t;
+  const steps = clamp(Math.round(dt/(1/60)),1,4);
+  for(let k=0;k<steps;k++) trafficStep(dt/steps);
+  const brainOn = director(dt, t);
+  if(brainOn) neuralStep(Math.min(dt,1/20));
+  else if(SHOTS[shotIdx].hero || heroCtl.free) heroAutoStep(dt);
+  updateCars(dt);
   camera.updateMatrixWorld();
   tiles.update();
+  sampleHeights(loaded ? 14 : 40);
   renderer.render(scene, camera);
-  const st = tiles.stats || {};
-  stat.textContent = `tiles: dl ${st.downloading ?? '-'} / parsing ${st.parsing ?? '-'} / visible ${tiles.visibleTiles ? tiles.visibleTiles.size : '-'}`;
+  if(brainOn && frame%2===0) drawBrain();
+  if(frame % 12 === 0){
+    let vs=0,n2=0;
+    for(const c of cars){ if(!c.seg)continue; vs+=c.v; n2++; }
+    document.getElementById('vCars').textContent = n2.toLocaleString();
+    document.getElementById('vSpeed').textContent = (vs/Math.max(n2,1)*3.6).toFixed(1)+' km/h';
+    if(simTime-lastFlowT>2){ flowRate=(flowCount-lastFlowC)/(simTime-lastFlowT)*60; lastFlowT=simTime; lastFlowC=flowCount; }
+    document.getElementById('vFlow').textContent = Math.round(flowRate).toLocaleString();
+    const st = tiles.group.children.length ? (tiles.visibleTiles ? tiles.visibleTiles.size : 0) : 0;
+    document.getElementById('vTiles').textContent = st;
+    dbgEl.textContent = JSON.stringify({hq:hqPtr, hqTot:heightQueue.length, gf:GROUND_FALLBACK.toFixed(1),
+      vis:st, heroY:heroCtl.y.toFixed(1), heroV:heroCtl.v.toFixed(1), steps:nn.steps, loss:+nn.loss.toFixed(3),
+      aut:+heroCtl.autonomy.toFixed(2), take:heroCtl.takeovers, shot:shotIdx, fps:Math.round(1/Math.max(dt,1e-3))});
+    if(!loaded && st > 30 && hqPtr > heightQueue.length*0.5){
+      loaded = true;
+      document.getElementById('load').classList.add('gone');
+    }
+  }
+  frame++;
 }
 loop();
+setTimeout(()=>document.getElementById('load').classList.add('gone'), 22000);
 </script>
 </body>
 </html>
