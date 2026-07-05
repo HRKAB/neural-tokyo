@@ -219,7 +219,7 @@ const toLL=(x,y)=>[LON0+x/(MPD*COSL),LAT0-y/MPD];
 const fromLL=(lng,lat)=>[(lng-LON0)*MPD*COSL,(LAT0-lat)*MPD];
 const STYLE_DAY='https://basemaps.cartocdn.com/gl/positron-gl-style/style.json';
 const STYLE_NIGHT='https://basemaps.cartocdn.com/gl/dark-matter-gl-style/style.json';
-const map=new maplibregl.Map({container:'map',style:STYLE_DAY,center:toLL(-20,-40),zoom:17.05,
+const map=new maplibregl.Map({container:'map',style:STYLE_DAY,center:toLL(-20,-40),zoom:17.9,
   hash:true,attributionControl:{compact:true},maxPitch:70,maxZoom:21.4,minZoom:14.5,antialias:true,fadeDuration:120,preserveDrawingBuffer:true});
 map.addControl(new maplibregl.NavigationControl({showCompass:true,visualizePitch:true}),'top-right');
 let SCL=1.6;
@@ -237,22 +237,12 @@ function addOwnLayers(){
   buildGJ();
   const dark=nightT===1;
   if(map.getSource('sim-roads'))return;
-  map.addSource('sim-bld',{type:'geojson',data:bldGJ});
   map.addSource('sim-roads',{type:'geojson',data:roadGJ});
   const firstSym=(map.getStyle().layers.find(l=>l.type==='symbol')||{}).id;
-  map.addLayer({id:'sim-bld-fill',type:'fill',source:'sim-bld',
-    paint:{'fill-color':dark?'#1C1C24':'#E6E5DE','fill-opacity':0.85,
-           'fill-outline-color':dark?'#26262F':'#D8D6CE'}},firstSym);
-  map.addLayer({id:'sim-road-case',type:'line',source:'sim-roads',
-    layout:{'line-cap':'round','line-join':'round'},
-    paint:{'line-color':dark?'#0D0D12':'#C9C7BF','line-width':pxw(1.16)}},firstSym);
+  // thin lane-fill so the driven road is unmistakable under the cars (no redundant building layer)
   map.addLayer({id:'sim-road-fill',type:'line',source:'sim-roads',
     layout:{'line-cap':'round','line-join':'round'},
-    paint:{'line-color':dark?'#23232E':'#FFFFFF','line-width':pxw(1.0)}},firstSym);
-  map.addLayer({id:'sim-road-center',type:'line',source:'sim-roads',
-    filter:['>=',['get','rank'],4],
-    layout:{'line-join':'round'},
-    paint:{'line-color':dark?'#31313E':'#DBD9D1','line-width':1,'line-dasharray':[3,4]}},firstSym);
+    paint:{'line-color':dark?'#2A2A34':'#FFFFFF','line-opacity':0.9,'line-width':pxw(0.94)}},firstSym);
 }
 map.on('style.load',addOwnLayers);
 map.on('load',addOwnLayers);
@@ -781,7 +771,7 @@ function setMode(m,car){
     map.setStyle(wantNight?STYLE_NIGHT:STYLE_DAY);
   } else nightT=wantNight?1:0;
   simSpeedT=(m==='second')?0.055:1;
-  if(m==='city')tweenCam(17.05,-20,-40,1600,0,0);
+  if(m==='city')tweenCam(17.9,-20,-40,1600,0,0);
   if(m==='second'){
     let best=null,bn=-1;
     for(const sg of SIGS){
@@ -1073,7 +1063,7 @@ function drawSim(now,dt){
         c.dispLane+=(c.lane-c.dispLane)*Math.min(1,dt*4);
         const ang=scrAng(X0,Y0,c.dispA);
         sx.save();sx.translate(Xs,Ys);sx.rotate(ang);
-        const L=Math.max(3.4,c.L*SCL),Wd=L*(48/({car:96,taxi:96,truck:150,bus:188}[c.type]));
+        const L=Math.max(5.2,c.L*SCL*1.15),Wd=L*(48/({car:96,taxi:96,truck:150,bus:188}[c.type]));
         let bodyCol=c.ai?'#AD002D':c.col;
         if(c.learned&&nightF>0.5)bodyCol='#E23558';
         const sp=getSprite(bodyCol,c.type);
