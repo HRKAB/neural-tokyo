@@ -255,6 +255,8 @@ function addOwnLayers(){
     paint:{'line-color':dark?'#31313E':'#DBD9D1','line-width':1,'line-dasharray':[3,4]}},firstSym);
 }
 map.on('style.load',addOwnLayers);
+map.on('load',addOwnLayers);
+if(map.isStyleLoaded&&map.isStyleLoaded())addOwnLayers();
 function W2S(x,y){const p=map.project(toLL(x,y));return [p.x,p.y];}
 function S2W(px,py){const l=map.unproject([px,py]);return fromLL(l.lng,l.lat);}
 function scrAng(x,y,ang){
@@ -1319,9 +1321,13 @@ document.getElementById('refBtn').addEventListener('click',()=>{document.getElem
 document.getElementById('refClose').addEventListener('click',()=>{document.getElementById('refs').style.display='none';});
 /* ============ loop ============ */
 let last=performance.now(),acc=0;
+let LOOPN=0,LOOPERR=null;
 function loop(now){
+ try{
   let dt=Math.min(0.06,(now-last)/1000);last=now;
+  LOOPN++;
   if(document.hidden){requestAnimationFrame(loop);return;}
+  if(!map.transform||!map.transform.width){requestAnimationFrame(loop);return;}
   {
     const a=map.project(toLL(0,0)),b=map.project(toLL(3,0));
     SCL=Math.hypot(b.x-a.x,b.y-a.y)/3;
@@ -1364,8 +1370,10 @@ function loop(now){
   }
   drawSim(now,dt);
   drawAnns(now);
+ }catch(e){LOOPERR=(e&&e.message||String(e))+' | '+(e&&e.stack||'').split('\n')[1];}
   requestAnimationFrame(loop);
 }
+window.__DBG=()=>({loopN:LOOPN,loopErr:LOOPERR,hasSimRoads:!!map.getSource('sim-roads'),z:map.getZoom(),painted:(()=>{const c=document.getElementById('simC');const d=c.getContext('2d').getImageData(0,0,c.width,300).data;let n=0;for(let i=3;i<d.length;i+=4)if(d[i])n++;return n;})()});
 /* ============ boot ============ */
 VW=innerWidth;VH=innerHeight;
 simC.width=VW*DPR;simC.height=VH*DPR;
