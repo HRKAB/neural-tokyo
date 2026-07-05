@@ -1377,12 +1377,14 @@ window.__DBG=()=>({loopN:LOOPN,loopErr:LOOPERR,hasSimRoads:!!map.getSource('sim-
 /* ============ boot ============ */
 VW=innerWidth;VH=innerHeight;
 simC.width=VW*DPR;simC.height=VH*DPR;
-applyLang();
-applyShareUI(aiShare);setShare(aiShare);
-for(let i=0;i<400;i++)step(0.025);
-const startCh=Q.get('ch');
-if(startCh&&['frame','second','night','city'].includes(startCh))setMode(startCh);else setChapterText();
-requestAnimationFrame(loop);
+requestAnimationFrame(loop);            // start render loop FIRST, unconditionally
+try{applyLang();}catch(e){console.error('applyLang',e);}
+try{applyShareUI(aiShare);setShare(aiShare);}catch(e){console.error('share',e);}
+try{for(let i=0;i<400;i++)step(0.025);}catch(e){console.error('warmup',e);}
+try{
+  const startCh=Q.get('ch');
+  if(startCh&&['frame','second','night','city'].includes(startCh))setMode(startCh);else setChapterText();
+}catch(e){console.error('startMode',e);}
 map.on('load',()=>{const s=document.getElementById('splash');if(s){s.style.opacity=0;setTimeout(()=>s.remove(),520);}});setTimeout(()=>{const s=document.getElementById('splash');if(s){s.style.opacity=0;setTimeout(()=>s.remove(),520);}},6000);
 const intro=document.getElementById('intro');
 function killIntro(){if(intro.parentNode){intro.style.opacity=0;intro.style.transition='opacity .5s';setTimeout(()=>intro.remove(),520);}}
