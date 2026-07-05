@@ -15,6 +15,19 @@
   #stats{position:fixed;right:20px;bottom:14px;color:#42536a;font-size:9px;
        letter-spacing:.08em;text-align:right;pointer-events:none;
        font-family:'JetBrains Mono',Menlo,monospace}
+  #hud .t,#hud .s,#stats{transition:color 1s ease}
+  body.day #hud .t{color:#2b313a}
+  body.day #hud .s{color:#5f6975}
+  body.day #stats{color:#7d8792}
+  #modeToggle{position:fixed;right:20px;top:18px;display:flex;cursor:pointer;
+       font-family:'JetBrains Mono','SF Mono',Menlo,monospace;font-size:9px;
+       letter-spacing:.14em;border:1px solid rgba(150,165,190,.32);border-radius:999px;
+       overflow:hidden;user-select:none;transition:border-color 1s ease}
+  #modeToggle span{padding:5px 12px;color:#6d7d94;transition:background 1s ease,color 1s ease}
+  #modeToggle span.on{background:rgba(190,205,225,.16);color:#dfe6f0}
+  body.day #modeToggle{border-color:rgba(50,60,75,.28)}
+  body.day #modeToggle span{color:#8a93a0}
+  body.day #modeToggle span.on{background:rgba(40,48,60,.10);color:#2b313a}
 </style>
 <script type="importmap">
 {"imports":{
@@ -29,6 +42,9 @@
 <div id="hud">
   <div class="t">TOKYO FLOW <span class="red">v10</span></div>
   <div class="s" id="hudsub">M2 STYLE FRAME —</div>
+</div>
+<div id="modeToggle" title="press D">
+  <span id="mDay">&#9728; DAY</span><span id="mNight" class="on">&#9790; NIGHT</span>
 </div>
 <div id="stats">loading…</div>
 <script type="module">
@@ -50,8 +66,9 @@ import {OutputPass} from 'three/addons/postprocessing/OutputPass.js';
 
 // ---------------- params ----------------
 const Q = new URLSearchParams(location.search);
-const STYLE = (Q.get('style') || Q.get('shot') || 'B').toUpperCase();
+const STYLE = (Q.get('style') || Q.get('shot') || 'C').toUpperCase();
 const CAM = Q.get('cam') || 'core';
+const MODE = ((Q.get('mode') || 'night').toLowerCase() === 'day') ? 'day' : 'night';
 
 // All colors linear-space RGB. Windows/lights intentionally >1 for bloom.
 const STYLES = {
@@ -81,6 +98,20 @@ const STYLES = {
     upLight:0.75, storefront:1.05, wet:1.0, roadLift:0.70, vig:0.34 }
 };
 const S = STYLES[STYLE] || STYLES.B;
+
+// DAY — 上質な建築模型の午後 (pale afternoon, hazy aerial). Linear RGB.
+const DAY = {
+  label:'DAY — PALE AFTERNOON',
+  fog:[0.520,0.528,0.515], fogD:0.00033, exposure:0.92,      // bright warm-grey haze, thinner than night
+  bloomS:Math.min(S.bloomS*0.22, 0.13), bloomT:0.95,          // bloom ~1/4 of night → effectively off
+  sky:[0.355,0.385,0.435], gnd:[0.215,0.206,0.192],           // hemisphere: grey-blue sky / pavement bounce
+  sunDir:[-0.50,0.7071,-0.50], sun:[2.75,2.40,1.88],          // warm-white sun, 45° elev, from southwest
+  skyTop:[0.415,0.465,0.555], skyHor:[0.520,0.528,0.515],     // dome: cool grey-blue → faintly warm horizon (== fog)
+  hairCol:[0.95,0.95,0.95], hairOp:0.80,                      // visible white centerlines
+  road:[0.285,0.285,0.272],                                   // bright asphalt ~#8E8E8A
+  ground:[42.0,37.0,31.0], vig:0.20
+};
+
 document.getElementById('hudsub').textContent = 'M2 STYLE FRAME ' + S.label + ' / SHIBUYA 90,256 BLDG';
 
 // ---------------- renderer / scene ----------------
@@ -130,7 +161,8 @@ const bldUniforms = {
   uWinInt:   {value: S.winInt},
   uStreet:   {value: new THREE.Vector3(...S.street)},
   uUpLight:  {value: S.upLight},
-  uStorefront:{value: S.storefront}
+  uStorefront:{value: S.storefront},
+  uDay:      {value: 0.0}
 };
 const bldMat = new THREE.ShaderMaterial({
   uniforms: bldUniforms,
@@ -150,7 +182,7 @@ const bldMat = new THREE.ShaderMaterial({
     precision highp float;
     varying vec2 vUv; varying vec3 vN; varying vec3 vW; varying vec4 vI;
     uniform vec3 uSky,uGnd,uMoonDir,uMoonCol,uFogCol,uCool,uWarm,uStreet;
-    uniform float uFogD,uLitScale,uWinInt,uUpLight,uStorefront;
+    uniform float uFogD,uLitScale,uWinInt,uUpLight,uStorefront,uDay;
     float h21(vec2 p){ return fract(sin(dot(p, vec2(127.1,311.7))) * 43758.5453123); }
     void main(){
       vec3 n = normalize(vN);
@@ -159,23 +191,31 @@ const bldMat = new THREE.ShaderMaterial({
       // facade albedo: dark blue-grey concrete, subtle per-building variety
       float av = h21(vec2(seed*97.3, 1.7));
       vec3 albedo = mix(vec3(0.050,0.056,0.072), vec3(0.082,0.076,0.070), av);
-      if (roof) albedo *= 0.40;
-      // hemisphere + weak moon
+      // day palette: concrete / off-white / pale grey, per-building seed
+      vec3 dayAlb = mix(vec3(0.330,0.325,0.315), vec3(0.520,0.515,0.500), av);
+      float dvr = h21(vec2(seed*41.9, 8.2));
+      dayAlb = mix(dayAlb, vec3(0.520,0.535,0.560), step(0.70, dvr)*0.45);
+      // glass towers (>60m): sides pulled faintly toward sky blue (sky-reflection hint)
+      if (!roof && vI.w > 60.0) dayAlb = mix(dayAlb, vec3(0.440,0.500,0.610), 0.38);
+      albedo = mix(albedo, dayAlb, uDay);
+      if (roof) albedo *= mix(0.40, 0.52, uDay);   // day roofs: slightly darker grey
+      // hemisphere + directional (moon at night / sun by day)
       vec3 amb = mix(uGnd, uSky, n.y*0.5+0.5);
       float dif = max(dot(n, uMoonDir), 0.0);
       vec3 col = albedo * (amb*1.6 + uMoonCol*dif);
       float core = smoothstep(1700.0, 250.0, length(vW.xz));
+      float nightK = 1.0 - uDay;
       if (!roof){
         // street uplight: warm wash on lower facades, strongest in core
         float up = exp(-vUv.y*0.16);
         col += uStreet * up * uUpLight * (0.25 + 0.75*core)
-                * (0.06 + 0.10*h21(vec2(seed*7.7, 3.3)));
+                * (0.06 + 0.10*h21(vec2(seed*7.7, 3.3))) * nightK;
         // storefront band on low buildings near core
         if (vI.w < 18.0 && core > 0.10){
           float on = step(0.42, h21(vec2(seed*3.31, 11.0)));
           float band = smoothstep(4.6, 3.2, vUv.y) * smoothstep(0.25, 0.7, vUv.y);
           vec3 sfc = mix(uWarm, vec3(1.0,0.92,0.78), h21(vec2(seed, 5.0)));
-          col += sfc * band * on * core * uStorefront * 0.9;
+          col += sfc * band * on * core * uStorefront * 0.9 * nightK;
         }
         // windows: 4.0m x 3.2m grid keyed by building seed
         if (vUv.y > 2.0 && vUv.y < vI.w - 1.0){
@@ -193,9 +233,10 @@ const bldMat = new THREE.ShaderMaterial({
           vec3 wAvg = mix(uCool, uWarm, vI.z) * 0.78;
           float sharpTerm = pane * lit * bright;
           float avgTerm = 0.13 * vI.y * uLitScale;
-          col += mix(wcol * sharpTerm, wAvg * avgTerm, far) * uWinInt;
-          // faint sky sheen on dark glass
-          col += uSky * pane * (1.0-lit) * 0.06 * (1.0-far);
+          col += mix(wcol * sharpTerm, wAvg * avgTerm, far) * uWinInt * nightK;
+          // faint sky sheen on dark glass (night) / recessed glass grid (day)
+          col += uSky * pane * mix(1.0-lit, 0.30, uDay) * 0.06 * (1.0-far);
+          col *= 1.0 - pane * 0.16 * uDay * (1.0-far);
         }
       }
       // exp2 fog
@@ -414,14 +455,31 @@ function buildRoads(roads){
   rg.setAttribute('position', new THREE.Float32BufferAttribute(pos,3));
   rg.setAttribute('color', new THREE.Float32BufferAttribute(colr,3));
   rg.setIndex(idxA);
-  const roadMesh = new THREE.Mesh(rg, new THREE.MeshBasicMaterial({vertexColors:true, fog:true}));
+  // day-aware road shader: night = baked sodium-pooled vertex colors, day = flat bright asphalt
+  const roadUniforms = {
+    uDay:{value:0.0}, uDayCol:{value:new THREE.Vector3(...DAY.road)},
+    uFogCol:{value:new THREE.Vector3(S.fog[0],S.fog[1],S.fog[2])}, uFogD:{value:S.fogD}
+  };
+  const roadMesh = new THREE.Mesh(rg, new THREE.ShaderMaterial({
+    uniforms: roadUniforms,
+    vertexShader:`attribute vec3 color; varying vec3 vC; varying vec3 vW;
+      void main(){ vC = color; vec4 wp = modelMatrix*vec4(position,1.0); vW = wp.xyz;
+        gl_Position = projectionMatrix*viewMatrix*wp; }`,
+    fragmentShader:`precision highp float; varying vec3 vC; varying vec3 vW;
+      uniform float uDay,uFogD; uniform vec3 uDayCol,uFogCol;
+      void main(){
+        vec3 col = mix(vC, uDayCol, uDay);
+        float d = length(vW - cameraPosition);
+        float fw = 1.0 - exp(-uFogD*uFogD*d*d);
+        gl_FragColor = vec4(mix(col, uFogCol, clamp(fw,0.0,1.0)), 1.0);
+      }`}));
   const hg = new THREE.BufferGeometry();
   hg.setAttribute('position', new THREE.Float32BufferAttribute(hpos,3));
   hg.setIndex(hidx);
   const hairMesh = new THREE.Mesh(hg, new THREE.MeshBasicMaterial({
     color:new THREE.Color(0.45,0.46,0.50), transparent:true, opacity:0.30,
     blending:THREE.AdditiveBlending, depthWrite:false, fog:true}));
-  return {roadMesh, hairMesh, lampPts};
+  return {roadMesh, hairMesh, lampPts, roadUniforms};
 }
 
 function buildLamps(lampPts){
@@ -502,20 +560,33 @@ Promise.all([
   ground.position.set((mnx+mxx)/2, 0, -(mny+mxy)/2);
   scene.add(ground);
 
-  const {roadMesh, hairMesh, lampPts} = buildRoads(roads);
+  const {roadMesh, hairMesh, lampPts, roadUniforms} = buildRoads(roads);
   scene.add(roadMesh); scene.add(hairMesh);
   const lamps = buildLamps(lampPts);
   scene.add(lamps.glow); scene.add(lamps.pts);
   if (lamps.streaks) scene.add(lamps.streaks);
 
   // aviation beacons on tall roofs
+  let beaconPts = null;
   if (city.beacons.length){
     const bg2 = new THREE.BufferGeometry();
     bg2.setAttribute('position', new THREE.Float32BufferAttribute(city.beacons,3));
-    scene.add(new THREE.Points(bg2, new THREE.PointsMaterial({
+    beaconPts = new THREE.Points(bg2, new THREE.PointsMaterial({
       color:new THREE.Color(2.6,0.14,0.12), size:6.5, sizeAttenuation:true, map:gTex,
-      transparent:true, blending:THREE.AdditiveBlending, depthWrite:false, fog:true})));
+      transparent:true, blending:THREE.AdditiveBlending, depthWrite:false, fog:true}));
+    scene.add(beaconPts);
   }
+
+  // sky dome: flat (== fog) at night, cool-grey-blue → warm horizon gradient by day
+  const skyUni = { uTop:{value:fogCol.clone()}, uBot:{value:fogCol.clone()} };
+  const skyDome = new THREE.Mesh(new THREE.SphereGeometry(26000, 32, 16),
+    new THREE.ShaderMaterial({ uniforms:skyUni, side:THREE.BackSide, depthWrite:false,
+      vertexShader:`varying vec3 vP;
+        void main(){ vP = position; gl_Position = projectionMatrix*modelViewMatrix*vec4(position,1.0); }`,
+      fragmentShader:`precision highp float; varying vec3 vP; uniform vec3 uTop,uBot;
+        void main(){ float h = clamp(normalize(vP).y, 0.0, 1.0);
+          gl_FragColor = vec4(mix(uBot, uTop, pow(h, 0.55)), 1.0); }`}));
+  scene.add(skyDome);
 
   // post
   const composer = new EffectComposer(renderer);
@@ -538,13 +609,85 @@ Promise.all([
 
   renderer.info.autoReset = false;
   function draw(){ renderer.info.reset(); composer.render(); }
+
+  // ---------------- day / night engine ----------------
+  const N = {   // night baseline == current style S
+    fog:[...S.fog], fogD:S.fogD, exposure:S.exposure,
+    bloomS:S.bloomS, bloomT:S.bloomT,
+    sky:[...S.sky], gnd:[...S.gnd], sunDir:[-0.35,0.8,0.45], sun:[...S.moon],
+    skyTop:[...S.fog], skyHor:[...S.fog],
+    hairCol:[0.45,0.46,0.50], hairOp:0.30,
+    ground:[S.wet>0?0.55:0.85, S.wet>0?0.58:0.86, S.wet>0?0.66:0.92], vig:S.vig
+  };
+  const LERP = (a,b,k)=>a+(b-a)*k;
+  const L3 = (a,b,k)=>[LERP(a[0],b[0],k), LERP(a[1],b[1],k), LERP(a[2],b[2],k)];
+  const sunV = new THREE.Vector3();
+  function applyMix(t){
+    const fog = L3(N.fog, DAY.fog, t);
+    fogCol.setRGB(fog[0],fog[1],fog[2]);               // scene.background shares this instance
+    scene.fog.color.setRGB(fog[0],fog[1],fog[2]);      // FogExp2 clones its color → set explicitly
+    scene.fog.density = LERP(N.fogD, DAY.fogD, t);
+    renderer.toneMappingExposure = LERP(N.exposure, DAY.exposure, t);
+    bloom.strength = LERP(N.bloomS, DAY.bloomS, t);
+    bloom.threshold = LERP(N.bloomT, DAY.bloomT, t);
+    vig.uniforms.uVig.value = LERP(N.vig, DAY.vig, t);
+    const sky3 = L3(N.sky, DAY.sky, t), gnd3 = L3(N.gnd, DAY.gnd, t);
+    const sun3 = L3(N.sun, DAY.sun, t);
+    sunV.set(...L3(N.sunDir, DAY.sunDir, t)).normalize();
+    hemi.color.setRGB(...sky3); hemi.groundColor.setRGB(...gnd3);
+    moon.color.setRGB(...sun3); moon.position.copy(sunV).multiplyScalar(1000);
+    bldUniforms.uSky.value.set(...sky3); bldUniforms.uGnd.value.set(...gnd3);
+    bldUniforms.uMoonDir.value.copy(sunV); bldUniforms.uMoonCol.value.set(...sun3);
+    bldUniforms.uFogCol.value.set(...fog); bldUniforms.uFogD.value = scene.fog.density;
+    bldUniforms.uDay.value = t;
+    roadUniforms.uDay.value = t;
+    roadUniforms.uFogCol.value.set(...fog); roadUniforms.uFogD.value = scene.fog.density;
+    skyUni.uTop.value.setRGB(...L3(N.skyTop, DAY.skyTop, t));
+    skyUni.uBot.value.setRGB(...L3(N.skyHor, DAY.skyHor, t));
+    hairMesh.material.color.setRGB(...L3(N.hairCol, DAY.hairCol, t));
+    hairMesh.material.opacity = LERP(N.hairOp, DAY.hairOp, t);
+    ground.material.color.setRGB(...L3(N.ground, DAY.ground, t));
+    const nk = 1 - t, on = nk > 0.02;                  // night-only emitters fade out
+    lamps.pts.material.opacity = nk;   lamps.pts.visible = on;
+    lamps.glow.material.opacity = nk;  lamps.glow.visible = on;
+    if (lamps.streaks){ lamps.streaks.material.opacity = 0.88*nk; lamps.streaks.visible = on; }
+    if (beaconPts){ beaconPts.material.opacity = nk; beaconPts.visible = on; }
+  }
+  function syncUI(day){
+    document.body.classList.toggle('day', day);
+    document.getElementById('mDay').classList.toggle('on', day);
+    document.getElementById('mNight').classList.toggle('on', !day);
+    document.getElementById('hudsub').textContent =
+      'M2 STYLE FRAME ' + (day ? DAY.label : S.label) + ' / SHIBUYA 90,256 BLDG';
+  }
+  let modeT = (MODE === 'day') ? 1 : 0, modeTarget = modeT, animId = 0;
+  function setMode(day){
+    modeTarget = day ? 1 : 0;
+    syncUI(day);
+    window.__M2 && (window.__M2.mode = day ? 'day' : 'night');
+    cancelAnimationFrame(animId);
+    const from = modeT, t0 = performance.now(), dur = 1000;
+    function step(now){
+      const k = Math.min((now - t0)/dur, 1);
+      const e = k < 0.5 ? 2*k*k : 1 - Math.pow(-2*k + 2, 2)/2;   // easeInOutQuad
+      modeT = from + (modeTarget - from)*e;
+      applyMix(modeT); draw();
+      if (k < 1) animId = requestAnimationFrame(step);
+    }
+    animId = requestAnimationFrame(step);
+  }
+  document.getElementById('modeToggle').addEventListener('click', ()=> setMode(modeTarget < 0.5));
+  addEventListener('keydown', e=>{ if (e.key === 'd' || e.key === 'D') setMode(modeTarget < 0.5); });
+  syncUI(MODE === 'day');
+  applyMix(modeT);
+
   draw(); draw();   // second pass after texture upload
 
   document.getElementById('stats').innerHTML =
     `tiles ${city.idx.tiles.length} ・ buildings ${city.nb} ・ lamps ${lampPts.length}` +
     ` ・ style ${STYLE}/${CAM} ・ draw ${renderer.info.render.calls}<br>` +
     `PLATEAU 13113 LOD1 ・ TFT1 512m ・ ACES + UnrealBloom + FogExp2`;
-  window.__M2 = {ready:true, style:STYLE, cam:CAM, tiles:city.idx.tiles.length,
+  window.__M2 = {ready:true, style:STYLE, cam:CAM, mode:MODE, tiles:city.idx.tiles.length,
     buildings:city.nb, lamps:lampPts.length, verts:city.totalVerts,
     drawcalls:renderer.info.render.calls};
 
