@@ -138,6 +138,21 @@ scene.add(tiles.group);
 for(const qn of ['downloadQueue','parseQueue','processNodeQueue']){
   if(tiles[qn]) tiles[qn].schedulingCallback = f => setTimeout(f, 16);
 }
+let pmrem = null, envCaptured = false, envCam = null;
+function captureEnv(){
+  if(envCaptured) return;
+  envCaptured = true;
+  try{
+    if(!pmrem){ pmrem = new THREE.PMREMGenerator(renderer); pmrem.compileEquirectangularShader(); }
+    const rt = new THREE.WebGLCubeRenderTarget(256, { type: THREE.HalfFloatType });
+    envCam = new THREE.CubeCamera(1, 6000, rt);
+    envCam.position.set(0, 120, 0);
+    envCam.update(renderer, scene);
+    const pm = pmrem.fromCubemap(rt.texture);
+    scene.environment = pm.texture;
+    rt.dispose();
+  }catch(e){ err('ENV '+e.message); }
+}
 tiles.addEventListener('load-model', e => {
   queueMicrotask(() => {
     try{
@@ -524,10 +539,23 @@ const N = cars.length;
 const carsG = new THREE.Group(); scene.add(carsG);
 let bodyIM, cabinIM, wheelIM, shadowIM, taxiIM;
 {
-  const bodyGeo = new THREE.BoxGeometry(1.78, 0.6, 4.25); bodyGeo.translate(0, 0.62, 0);
-  const cabinGeo = new THREE.BoxGeometry(1.6, 0.5, 2.1); cabinGeo.translate(0, 1.12, -0.2);
-  bodyIM = new THREE.InstancedMesh(bodyGeo, new THREE.MeshStandardMaterial({ roughness:0.35, metalness:0.72 }), N);
-  cabinIM = new THREE.InstancedMesh(cabinGeo, new THREE.MeshStandardMaterial({ color:0x161a20, roughness:0.12, metalness:0.9 }), N);
+  // side profile in (z,y): a real car silhouette, extruded across width
+  function carBodyGeo(){
+    const s = new THREE.Shape();
+    s.moveTo(2.15, 0.28); s.lineTo(2.15, 0.5); s.lineTo(2.05, 0.6);
+    s.lineTo(1.0, 0.66); s.lineTo(0.55, 1.12); s.lineTo(-0.75, 1.14);
+    s.lineTo(-1.55, 0.8); s.lineTo(-2.05, 0.66); s.lineTo(-2.15, 0.5);
+    s.lineTo(-2.15, 0.28); s.lineTo(2.15, 0.28);
+    const g = new THREE.ExtrudeGeometry(s, { depth: 1.72, bevelEnabled: true, bevelThickness: 0.09, bevelSize: 0.09, bevelSegments: 2, steps: 1 });
+    g.translate(0, 0, -0.86);           // center width
+    g.rotateY(Math.PI/2);               // extrude axis X → car width
+    return g;
+  }
+  const bodyGeo = carBodyGeo();
+  // glasshouse: slightly inset dark cabin sitting in the greenhouse gap
+  const cabinGeo = new THREE.BoxGeometry(1.5, 0.46, 1.75); cabinGeo.translate(0, 0.92, -0.1);
+  bodyIM = new THREE.InstancedMesh(bodyGeo, new THREE.MeshStandardMaterial({ roughness:0.28, metalness:0.78, envMapIntensity:1.4 }), N);
+  cabinIM = new THREE.InstancedMesh(cabinGeo, new THREE.MeshStandardMaterial({ color:0x0d1016, roughness:0.05, metalness:0.95, envMapIntensity:2.0 }), N);
   const whGeo = new THREE.CylinderGeometry(0.32,0.32,0.22,10); whGeo.rotateZ(Math.PI/2);
   wheelIM = new THREE.InstancedMesh(whGeo, new THREE.MeshStandardMaterial({ color:0x101114, roughness:0.9 }), N*4);
   const shCv = document.createElement('canvas'); shCv.width=shCv.height=64;
@@ -548,9 +576,16 @@ let bodyIM, cabinIM, wheelIM, shadowIM, taxiIM;
 /* hero highlight mesh */
 const heroGroup = new THREE.Group();
 {
-  const bmat = new THREE.MeshStandardMaterial({ color:0xAD002D, roughness:0.32, metalness:0.6 });
-  const body = new THREE.Mesh(new THREE.BoxGeometry(1.82,0.62,4.3), bmat); body.position.y = 0.62;
-  const cab = new THREE.Mesh(new THREE.BoxGeometry(1.62,0.52,2.14), new THREE.MeshStandardMaterial({ color:0x14171c, roughness:0.1, metalness:0.9 })); cab.position.set(0,1.13,-0.2);
+  const bmat = new THREE.MeshStandardMaterial({ color:0xAD002D, roughness:0.24, metalness:0.72, envMapIntensity:1.5 });
+  const bodyS = new THREE.Shape();
+  bodyS.moveTo(2.18,0.28); bodyS.lineTo(2.18,0.5); bodyS.lineTo(2.08,0.6);
+  bodyS.lineTo(1.02,0.66); bodyS.lineTo(0.56,1.14); bodyS.lineTo(-0.76,1.16);
+  bodyS.lineTo(-1.57,0.82); bodyS.lineTo(-2.08,0.66); bodyS.lineTo(-2.18,0.5);
+  bodyS.lineTo(-2.18,0.28); bodyS.lineTo(2.18,0.28);
+  const bodyG = new THREE.ExtrudeGeometry(bodyS,{depth:1.74,bevelEnabled:true,bevelThickness:0.1,bevelSize:0.1,bevelSegments:2,steps:1});
+  bodyG.translate(0,0,-0.87); bodyG.rotateY(Math.PI/2);
+  const body = new THREE.Mesh(bodyG, bmat);
+  const cab = new THREE.Mesh(new THREE.BoxGeometry(1.52,0.48,1.78), new THREE.MeshStandardMaterial({ color:0x0d1016, roughness:0.04, metalness:0.95, envMapIntensity:2.2 })); cab.position.set(0,0.93,-0.1);
   heroGroup.add(body, cab);
   heroGroup.userData.wheels = [];
   const hwG = new THREE.CylinderGeometry(0.33,0.33,0.24,12); hwG.rotateZ(Math.PI/2);
@@ -1008,6 +1043,7 @@ function frameBody(dt, t){
   sampleHeights(loaded ? 14 : 40);
   filterTick++;
   if(filterTick % 240 === 0) filterLaneHeights();
+  if(!envCaptured && (tiles.visibleTiles ? tiles.visibleTiles.size : 0) > 40) captureEnv();
   renderer.render(scene, camera);
   if(brainOn && frame%2===0) drawBrain();
   if(frame % 12 === 0){
@@ -1026,6 +1062,7 @@ function frameBody(dt, t){
       loaded = true;
       document.getElementById('load').classList.add('gone');
     }
+    if(st > 40 && !envCaptured) captureEnv();
   }
   frame++;
 }
