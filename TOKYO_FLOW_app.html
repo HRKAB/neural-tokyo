@@ -219,18 +219,30 @@ const toLL=(x,y)=>[LON0+x/(MPD*COSL),LAT0-y/MPD];
 const fromLL=(lng,lat)=>[(lng-LON0)*MPD*COSL,(LAT0-lat)*MPD];
 const STYLE_DAY='https://basemaps.cartocdn.com/gl/positron-gl-style/style.json';
 const STYLE_NIGHT='https://basemaps.cartocdn.com/gl/dark-matter-gl-style/style.json';
-const map=new maplibregl.Map({container:'map',style:STYLE_DAY,center:toLL(-20,-40),zoom:17.9,
+const map=new maplibregl.Map({container:'map',style:STYLE_DAY,center:toLL(-20,-40),zoom:16.9,pitch:52,bearing:-18,
   hash:true,attributionControl:{compact:true},maxPitch:70,maxZoom:21.4,minZoom:14.5,antialias:true,fadeDuration:120,preserveDrawingBuffer:true});
 map.addControl(new maplibregl.NavigationControl({showCompass:true,visualizePitch:true}),'top-right');
 let SCL=1.6;
 /* ---- own road/building layers: rendered from the exact data the sim drives on ---- */
 let roadGJ=null,bldGJ=null;
+function polyArea(p){let a=0;for(let i=0;i<p.length;i++){const q=p[(i+1)%p.length];a+=p[i][0]*q[1]-q[0]*p[i][1];}return Math.abs(a/2);}
 function buildGJ(){
   if(roadGJ)return;
   roadGJ={type:'FeatureCollection',features:roads.map(r=>({type:'Feature',
     properties:{w:r.w,rank:r.rank},geometry:{type:'LineString',coordinates:r.pts.map(p=>toLL(p[0],p[1]))}}))};
-  bldGJ={type:'FeatureCollection',features:DATA.buildings.map(b=>({type:'Feature',properties:{},
-    geometry:{type:'Polygon',coordinates:[b.p.map(p=>toLL(p[0],p[1]))]}}))};
+  // estimate heights: bigger footprint + closer to Shibuya station core = taller. Deterministic per building.
+  const cx0=35,cy0=25;
+  bldGJ={type:'FeatureCollection',features:DATA.buildings.map((b,i)=>{
+    const a=polyArea(b.p);
+    let cx=0,cy=0;b.p.forEach(p=>{cx+=p[0];cy+=p[1];});cx/=b.p.length;cy/=b.p.length;
+    const dCore=Math.hypot(cx-cx0,cy-cy0);
+    const coreBoost=1+2.4*Math.exp(-Math.pow(dCore/420,2));
+    const seed=(Math.sin(i*12.9898)*43758.5453)%1;
+    let h=Math.min(240, (4+Math.sqrt(a)*0.9)*coreBoost*(0.75+Math.abs(seed)*0.7));
+    h=Math.max(6,h);
+    return {type:'Feature',properties:{h:Math.round(h),base:0,area:a},
+      geometry:{type:'Polygon',coordinates:[b.p.map(p=>toLL(p[0],p[1]))]}};
+  })};
 }
 function pxw(mult){return ['interpolate',['exponential',2],['zoom'],14,['*',['get','w'],0.13*mult],21,['*',['get','w'],16.4*mult]];}
 function addOwnLayers(){
@@ -238,11 +250,21 @@ function addOwnLayers(){
   const dark=nightT===1;
   if(map.getSource('sim-roads'))return;
   map.addSource('sim-roads',{type:'geojson',data:roadGJ});
+  map.addSource('sim-bld',{type:'geojson',data:bldGJ});
   const firstSym=(map.getStyle().layers.find(l=>l.type==='symbol')||{}).id;
-  // thin lane-fill so the driven road is unmistakable under the cars (no redundant building layer)
   map.addLayer({id:'sim-road-fill',type:'line',source:'sim-roads',
     layout:{'line-cap':'round','line-join':'round'},
-    paint:{'line-color':dark?'#2A2A34':'#FFFFFF','line-opacity':0.9,'line-width':pxw(0.94)}},firstSym);
+    paint:{'line-color':dark?'#2A2A34':'#FFFFFF','line-opacity':0.95,'line-width':pxw(0.94)}},firstSym);
+  // real 3D city — extruded footprints, height-shaded, TDS palette
+  map.addLayer({id:'sim-bld-3d',type:'fill-extrusion',source:'sim-bld',
+    paint:{
+      'fill-extrusion-height':['get','h'],
+      'fill-extrusion-base':['get','base'],
+      'fill-extrusion-opacity':0.92,
+      'fill-extrusion-color':dark
+        ? ['interpolate',['linear'],['get','h'],6,'#20202A',60,'#2A2A38',160,'#3A2230']
+        : ['interpolate',['linear'],['get','h'],6,'#E4E3DC',60,'#D7D5CC',160,'#C6C2BA']
+    }});
 }
 map.on('style.load',addOwnLayers);
 map.on('load',addOwnLayers);
@@ -771,7 +793,7 @@ function setMode(m,car){
     map.setStyle(wantNight?STYLE_NIGHT:STYLE_DAY);
   } else nightT=wantNight?1:0;
   simSpeedT=(m==='second')?0.055:1;
-  if(m==='city')tweenCam(17.9,-20,-40,1600,0,0);
+  if(m==='city')tweenCam(16.9,-20,-40,1600,52,-18);
   if(m==='second'){
     let best=null,bn=-1;
     for(const sg of SIGS){
@@ -786,19 +808,19 @@ function setMode(m,car){
     if(!bc){for(const c of cars){const [x,y]=c.world();const d=Math.hypot(x-best.x,y-best.y);
       if(d<90&&d<bd){bd=d;bc=c;}}if(bc&&!bc.ai){bc.ai=true;restoreAI=bc;}}
     focusCar=bc;
-    tweenCam(19.5,best.x,best.y,1900,32,18);
+    tweenCam(18.8,best.x,best.y,1900,58,24);
   }
   if(m==='frame'){
     focusCar=car||cars.filter(c=>c.ai&&c.v>2)[0]||cars[0];
     if(!focusCar.ai){focusCar.ai=true;restoreAI=focusCar;}
     seenMem.clear();
     const [x,y]=focusCar.world();
-    tweenCam(20.5,x,y,1900,47,0);
+    tweenCam(20.2,x,y,1900,72,0);
   }
   if(m==='night'){
     nightEvent=null;nightArmed=true;nightEnterW=performance.now();
     cars.forEach(c=>{c.learned=false;});
-    tweenCam(16.2,20,-10,1900,0,0);
+    tweenCam(16.4,20,-10,1900,50,-18);
   }
   pushURL();
 }
@@ -964,7 +986,10 @@ function drawSim(now,dt){
   }
   if(mode==='frame'&&focusCar){
     const [fx,fy,fa]=focusCar.world();
-    if(!map.isMoving())map.jumpTo({center:toLL(fx,fy)});
+    if(!map.isMoving()){
+      const bearingDeg=(scrAng(fx,fy,fa)*180/Math.PI)+90;
+      map.jumpTo({center:toLL(fx,fy),bearing:map.getBearing()+(((bearingDeg-map.getBearing()+540)%360)-180)*0.06});
+    }
     const RAYS=72,MAXD=72;
     const others=cars.filter(o=>o!==focusCar).map(o=>{const [x,y]=o.world();return {o,x,y};})
       .filter(q=>Math.hypot(q.x-fx,q.y-fy)<MAXD+6);
