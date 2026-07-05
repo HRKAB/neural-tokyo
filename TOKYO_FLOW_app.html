@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>TOKYO FLOW — 一枚・一秒・一夜・一都市</title>
 <meta property="og:title" content="TOKYO FLOW — 渋滞をスライダー1本で溶かす、実在の渋谷">
-<meta property="og:description" content="実OSM渋谷×実交通物理。カメラのみのAIが100%になった瞬間、信号が消える。">
+<meta property="og:description" content="実OSM渋谷×実交通物理。Turing PilotのE2E自動運転が100%になると、“停止”が消える——信号はそのままに。">
 <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><circle cx='50' cy='50' r='34' fill='%23AD002D'/></svg>">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -163,7 +163,7 @@ body.dive .panel,body.dive #foot{opacity:0!important;pointer-events:none!importa
 
 <div class="panel" id="legend">
   <span><i id="lgH" style="background:#2B2B28"></i>HUMAN</span>
-  <span><i style="background:var(--red)"></i>AI</span>
+  <span><i style="background:#17C964"></i>AI — TURING PILOT</span>
   <span id="ophint" style="opacity:.75"></span>
   <button id="recBtn">● REC 15s</button>
   <button id="cardBtn">SHARE CARD</button>
@@ -197,15 +197,14 @@ body.dive .panel,body.dive #foot{opacity:0!important;pointer-events:none!importa
       <p style="margin-bottom:10px"><b>実装している物理・制御</b></p>
       <ul>
         <li>車追従: <b>IDM</b> — Treiber, Hennecke &amp; Helbing (2000), <i>Physical Review E</i> 62(2).</li>
-        <li>信号レス予約制交差点（AI 100%時）: <b>AIM</b> — Dresner &amp; Stone (2008), <i>JAIR</i> 31, 591-656.</li>
+        <li>AIの青信号滑走（止まらない交差点通過）: <b>GLOSA</b> — Katsaros, Kernchen, Dianati &amp; Rieck (2011), <i>IWCMC</i>. 信号は残したまま停止だけを消す速度調律.</li>
         <li>渋滞波（ファントムジャム）の自然発生: Sugiyama et al. (2008), <i>New J. Phys.</i> 10 — 実車リング実験.</li>
         <li>AIによる渋滞波の消散: Stern et al. (2018), <i>Transp. Res. C</i> 89 — <b>AV比率5%未満で停止波が消え、燃料最大40%減</b>. 大規模追試: CIRCLES 100台実証 (I-24, 2022) / Berkeley BAIR (2025).</li>
         <li>協調時の道路容量: USDOT メタ分析 — CACC普及 25/50/75/100% で容量 <b>+14/+26/+48/+81%</b>.</li>
       </ul>
       <p style="margin:12px 0 10px"><b>Turingの実技術（本アプリのAI車が模すもの）</b></p>
       <ul>
-        <li>カメラのみ・E2E: LiDAR/高精度地図非依存の単一AI（tur.ing/technicalbelief）.</li>
-        <li>約20億パラメータVLAを<b>10Hzリアルタイム推論</b>で公道制御 — 国内初（公式 2026-03-26）.</li>
+        <li><b>Turing Pilot</b> — カメラベース・LiDAR/高精度地図非依存の<b>E2E（エンドツーエンド）自動運転</b>（tur.ing）.</li>
         <li>Terra 世界モデル（OSS）/ CoVLA データセット（WACV 2025）/ Tokyo30 達成（AI Day 2025）.</li>
       </ul>
       <p style="margin:12px 0 10px"><b>E2E自動運転の系譜</b></p>
@@ -247,7 +246,7 @@ const toLL=(x,y)=>[LON0+x/(MPD*COSL),LAT0-y/MPD];
 const fromLL=(lng,lat)=>[(lng-LON0)*MPD*COSL,(LAT0-lat)*MPD];
 const STYLE_DAY='https://basemaps.cartocdn.com/gl/positron-gl-style/style.json';
 const STYLE_NIGHT='https://basemaps.cartocdn.com/gl/dark-matter-gl-style/style.json';
-const map=new maplibregl.Map({container:'map',style:STYLE_DAY,center:toLL(-20,-40),zoom:16.9,pitch:52,bearing:-18,
+const map=new maplibregl.Map({container:'map',style:STYLE_DAY,center:toLL(-20,-40),zoom:16.7,pitch:42,bearing:-18,
   hash:true,attributionControl:{compact:true},maxPitch:70,maxZoom:21.4,minZoom:14.5,antialias:true,fadeDuration:120,preserveDrawingBuffer:true});
 map.addControl(new maplibregl.NavigationControl({showCompass:true,visualizePitch:true}),'top-right');
 let SCL=1.6;
@@ -286,13 +285,14 @@ function addOwnLayers(){
   // real 3D city — extruded footprints, height-shaded, TDS palette
   if(!map.getLayer('sim-bld-3d'))map.addLayer({id:'sim-bld-3d',type:'fill-extrusion',source:'sim-bld',
     paint:{
-      'fill-extrusion-height':['get','h'],
+      'fill-extrusion-height':['*',1.0,['get','h']],
       'fill-extrusion-base':['get','base'],
-      'fill-extrusion-opacity':0.96,
+      'fill-extrusion-opacity':dark?0.96:0.9,
       'fill-extrusion-color':dark
         ? ['interpolate',['linear'],['get','h'],6,'#1B1B25',60,'#232330',150,'#2E2E3E']
         : ['interpolate',['linear'],['get','h'],6,'#E4E3DC',60,'#D7D5CC',160,'#C6C2BA']
     }});
+  if(window.__SIMLAYER&&!map.getLayer('sim-gl'))map.addLayer(window.__SIMLAYER);
 }
 map.on('style.load',addOwnLayers);
 map.on('load',addOwnLayers);
@@ -307,25 +307,25 @@ function scrAng(x,y,ang){
 const T={
 ja:{dens:'台数',r1:'一枚',r2:'一秒',r3:'一夜',r4:'一都市',tour:'ツアー',dive:'60秒の証明',diveGo:'▶ 60秒の証明を見る',var:'THE ONE VARIABLE — 自律走行の割合',
 k1l:'平均速度 — LIVE',k2l:'渋滞停止（信号待ちを除く）',k3l:'都市の輸送量 — 全車の走行距離',k3d:'同じ台数が、どれだけ「進めているか」',
-ctlnote:'台数・道路・需要は完全同一。<b>100%で信号が消え、予約制交差点（AIM）に切り替わります</b>。協調100%時の道路容量+81%はUSDOT実測メタ分析の値。',
+ctlnote:'台数・道路・需要・信号は完全同一。AIは<b>Turing Pilot型のE2E自動運転</b>——信号の周期を読み、<b>青に合わせて速度を調律</b>します（GLOSA）。100%でも信号と横断歩行者は残ります。消えるのは<b>“停止”</b>。',
 ophint:'ドラッグ移動・ホイール拡大・車クリックで搭乗',
 cityL:'CHAPTER 4 — 一都市 / ONE CITY',cityS:'実在の渋谷0.8km²。<b>760台</b>が実交通物理（IDM）で走行中——湧かず、消えず、すり抜けません。AV5%未満で渋滞波が消えはじめる（Stern 2018）——スライダーで確かめてください。',
-secondL:'CHAPTER 2 — 一秒 / ONE SECOND',secondS:'最も混み合う交差点へ。時間を引き延ばすと、1台のAIが評価し続けている<b>候補未来</b>が見えます。灰は棄却、赤が選択。Turingの実車はこれを<b>毎秒10回</b>やっています。',
-frameL:'CHAPTER 1 — 一枚 / ONE FRAME',frameS:'1台に乗ります。<b>カメラのみ・LiDARゼロ</b>。全周の視野は実在の建物1,096棟で遮られ、見えない車は「記憶」として保持されます——見えないものを覚えているのが、知能です。',
+secondL:'CHAPTER 2 — 一秒 / ONE SECOND',secondS:'最も混み合う交差点へ。時間を引き延ばすと、1台のAIが評価し続けている<b>候補未来</b>が見えます。灰は棄却、<b style="color:#0FA958">緑が選択</b>。Turing PilotのE2Eは、これを絶え間なく繰り返しています。',
+frameL:'CHAPTER 1 — 一枚 / ONE FRAME',frameS:'1台に乗ります。<b>カメラベース・LiDAR非依存</b>のE2E。全周の視野は実在の建物1,096棟で遮られ、見えない車は「記憶」として保持されます——見えないものを覚えているのが、知能です。',
 nightL:'CHAPTER 3 — 一夜 / SAME NIGHT',nightS:'夜。1台が<b>本当にヒヤリとした瞬間</b>（実TTC検出）、経験は波になり全AI車へ。人間は一生ずつ学ぶ。機械は全員の生涯を同時に生きる。',
 introH:'渋谷の渋滞を、スライダー1本で溶かしてください。',
-introB:'画面の中は<b>実在の渋谷</b>。760台が本物の交通物理で走っています。<b>黒い車＝人間</b>、<b style="color:#AD002D">赤い車＝AI</b>。<br>① 左下のスライダーでAIの割合を上げる<br>② 右上の平均速度が変わるのを見る<br>③ <b>100%にすると、信号が消えます</b>（予約制交差点）<br>④ 車をクリックすると、その車の「眼」に乗れます',
+introB:'画面の中は<b>実在の渋谷</b>。760台が本物の交通物理で走っています。<b>黒い車＝人間</b>、<b style="color:#0FA958">緑の車＝Turing Pilot（E2E自動運転）</b>。<br>① 左下のスライダーでAIの割合を上げる<br>② 右上の平均速度が変わるのを見る<br>③ 100%でも<b>信号は消えません</b>——消えるのは<b>“停止”</b>です（青に合わせて滑走）<br>④ 車をクリックすると、その車の「眼」に乗れます',
 go:'触ってみる',tourGo:'ガイドツアーで見る'},
 en:{dens:'FLEET',r1:'ONE FRAME',r2:'ONE SECOND',r3:'ONE NIGHT',r4:'ONE CITY',tour:'TOUR',dive:'THE 60-SEC PROOF',diveGo:'▶ Watch the 60-second proof',var:'THE ONE VARIABLE — autonomous share',
 k1l:'AVG SPEED — LIVE',k2l:'JAM-STOPPED (excl. signals)',k3l:'CITY THROUGHPUT — total distance',k3d:'How far the same fleet actually gets',
-ctlnote:'Same fleet, same roads, same demand. <b>At 100%, traffic lights disappear</b> — reservation intersections (AIM). +81% capacity at full cooperation: USDOT meta-analysis.',
+ctlnote:'Same fleet, same roads, same demand, same signals. The AI is <b>Turing Pilot-style end-to-end driving</b> — it reads signal timing and <b>glides to arrive on green</b> (GLOSA). At 100%, lights and pedestrians remain. What disappears is <b>stopping</b>.',
 ophint:'drag to pan · wheel to zoom · click a car to ride',
 cityL:'CHAPTER 4 — ONE CITY',cityS:'Real Shibuya, 0.8 km². <b>760 vehicles</b> on real physics (IDM) — none spawn, none vanish, none overlap. Below 5% AVs, stop-and-go waves start dying (Stern 2018). Try the slider.',
-secondL:'CHAPTER 2 — ONE SECOND',secondS:'Into the busiest crossing. Slow time and you see the <b>candidate futures</b> one AI keeps evaluating. Grey = rejected, crimson = chosen. Turing’s real car does this <b>10 times every second</b>.',
-frameL:'CHAPTER 1 — ONE FRAME',frameS:'Ride one car. <b>Cameras only, zero LiDAR.</b> Its all-round view is occluded by 1,096 real buildings; unseen cars persist as <b>memory</b> — intelligence is remembering what you can’t see.',
+secondL:'CHAPTER 2 — ONE SECOND',secondS:'Into the busiest crossing. Slow time and you see the <b>candidate futures</b> one AI keeps evaluating. Grey = rejected, <b style="color:#0FA958">green = chosen</b>. Turing Pilot’s E2E does this relentlessly.',
+frameL:'CHAPTER 1 — ONE FRAME',frameS:'Ride one car. <b>Camera-based, LiDAR-independent</b> E2E. Its all-round view is occluded by 1,096 real buildings; unseen cars persist as <b>memory</b> — intelligence is remembering what you can’t see.',
 nightL:'CHAPTER 3 — ONE NIGHT',nightS:'Night. The moment one car has a real near-miss (live TTC), the experience becomes a wave to every AI. Humans learn one life at a time. Machines live all lives at once.',
 introH:'Dissolve Shibuya’s traffic with a single slider.',
-introB:'This is <b>real Shibuya</b> — 760 vehicles on real physics. <b>Black = human</b>, <b style="color:#AD002D">crimson = AI</b>.<br>① Raise the AI share (bottom-left)<br>② Watch average speed respond (top-right)<br>③ <b>At 100%, the traffic lights disappear</b><br>④ Click any car to ride its eyes',
+introB:'This is <b>real Shibuya</b> — 760 vehicles on real physics. <b>Black = human</b>, <b style="color:#0FA958">green = Turing Pilot (E2E)</b>.<br>① Raise the AI share (bottom-left)<br>② Watch average speed respond (top-right)<br>③ At 100% <b>the lights stay</b> — what disappears is <b>stopping</b><br>④ Click any car to ride its eyes',
 go:'Start',tourGo:'Guided tour'}};
 function applyLang(){
   document.querySelectorAll('[data-i]').forEach(el=>{const k=el.dataset.i;if(T[LANG][k])el.innerHTML=T[LANG][k];});
@@ -403,6 +403,10 @@ roads.forEach(r=>{
 let simT=0;
 const walkers=[];
 function phaseGreen(sg,ph,t){const c=(t+sg.off)%sg.cyc;const g=sg.cyc*0.35;return ph===0?c<g:(c>=sg.cyc/2&&c<sg.cyc/2+g);}
+function timeToGreen(sg,ph,t){const cyc=sg.cyc,c2=(t+sg.off)%cyc,g=cyc*0.35,st=ph===0?0:cyc/2,en=st+g;
+  if(c2>=st&&c2<en)return 0;return c2<st?st-c2:cyc-c2+st;}
+function greenRemaining(sg,ph,t){const cyc=sg.cyc,c2=(t+sg.off)%cyc,g=cyc*0.35,st=ph===0?0:cyc/2,en=st+g;
+  return (c2>=st&&c2<en)?en-c2:0;}
 /* ============ crossings ============ */
 (function(){
   const CC=4,grid=new Map();
@@ -576,7 +580,6 @@ function updateCrossCache(){
 function step(dt){
   simT+=dt;
   updateCrossCache();
-  const RES=aiShare>=100;
   for(const r of roads){
     for(const dir of [0,1]){
       const list=r.cars[dir];
@@ -620,37 +623,39 @@ function step(dt){
             var turnBrake=need;
           }
         }
-        // signals or reservation
+        // signals: humans stop on red; AI (Turing Pilot E2E) glides to arrive on green — GLOSA.
+        // Lights never disappear; pedestrians always cross. What disappears is stopping.
         for(const sg of r.sigs[dir]){
           if(sg.s>c.s-1&&sg.s<c.s+90){
-            if(!RES){
-              let pedBlock=false;
-              for(const w of walkers){if(w.rref===r&&w.left>0.5&&w.left<(r.w+2.5)){pedBlock=true;break;}}
-              if(!phaseGreen(sg.sg,sg.ph,simT)||pedBlock){
-                const sgap=sg.s-c.s-2.5;
+            let pedBlock=false;
+            for(const w of walkers){if(w.rref===r&&w.left>0.5&&w.left<(r.w+2.5)){pedBlock=true;break;}}
+            const green=phaseGreen(sg.sg,sg.ph,simT);
+            const d=sg.s-c.s;
+            if(!c.ai||pedBlock){
+              if(!green||pedBlock){
+                const sgap=d-2.5;
                 if(sgap<gap){gap=sgap;dv=c.v;}
                 if(sgap<20)c.sigWait=true;
                 if(sgap<3&&c.v<0.3&&!c.ai)c.hold=1.0+rand()*1.1;
-              } else if(c.hold>0&&sg.s-c.s<6){gap=Math.min(gap,0.1);dv=c.v;}
+              } else if(c.hold>0&&d<6){gap=Math.min(gap,0.1);dv=c.v;}
             } else {
-              // AIM reservation (Dresner & Stone 2008, simplified slot serialization)
-              const d=sg.s-c.s;
-              if(d>0&&d<45){
-                const g=sg.ph;
-                if(c.resSg!==sg.sg||c.resT<simT-6){
-                  const eta=simT+d/Math.max(c.v,3);
-                  const t2=Math.max(eta,sg.sg.gLast[1-g]+1.05);
-                  sg.sg.gLast[g]=Math.max(sg.sg.gLast[g],t2);
-                  c.resSg=sg.sg;c.resT=t2;
-                }
-                const rem=c.resT-simT;
-                if(rem>0.08){
-                  const vAllow=(d-1.2)/rem;
-                  if(c.v>vAllow&&vAllow<v0r){
-                    const sgap=d-1.5;
-                    if(sgap<gap){gap=Math.max(sgap,0.3);dv=c.v-Math.max(vAllow,0)*0.9;}
-                    if(d<22)c.sigWait=true;
-                  }
+              let tg=0;
+              if(!green)tg=timeToGreen(sg.sg,sg.ph,simT);
+              else{
+                const rem=greenRemaining(sg.sg,sg.ph,simT);
+                const eta=d/Math.max(c.v,2);
+                if(eta>rem)tg=rem+sg.sg.cyc*0.65;
+              }
+              if(tg>0.05&&d<75){
+                const vAllow=(d-2.2)/tg;
+                if(vAllow<0.7){
+                  const sgap=d-2.5;
+                  if(sgap<gap){gap=sgap;dv=c.v;}
+                  if(sgap<20)c.sigWait=true;
+                }else if(c.v>vAllow){
+                  const sgap=d-2.2;
+                  if(sgap<gap){gap=Math.max(sgap,0.4);dv=(c.v-vAllow)*1.4;}
+                  if(d<22&&vAllow<2)c.sigWait=true;
                 }
               }
             }
@@ -757,7 +762,7 @@ function step(dt){
 /* ============ palette ============ */
 function hx2(h){return [parseInt(h.slice(1,3),16),parseInt(h.slice(3,5),16),parseInt(h.slice(5,7),16)];}
 function lerpHex(a,b,t){const A=hx2(a),B=hx2(b);return 'rgb('+A.map((v,i)=>Math.round(v+(B[i]-v)*t)).join(',')+')';}
-const PAL={label:['#7A7A74','#8E8E9A'],ai:['#AD002D','#E23558'],sigF:['#FCFBF8','#22222C'],sigS:['#B9B7AF','#3A3A46']};
+const PAL={label:['#7A7A74','#8E8E9A'],ai:['#0FA958','#3CFF8F'],sigF:['#FCFBF8','#22222C'],sigS:['#B9B7AF','#3A3A46']};
 function C(k){return lerpHex(PAL[k][0],PAL[k][1],nightF);}
 /* ============ car sprites (designed, not rectangles) ============ */
 const SPRITES={};
@@ -797,6 +802,247 @@ function getSprite(col,type){
   img.onload=()=>{SPRITES[k].ready=true;};
   return SPRITES[k];
 }
+/* ============ v9: depth-correct GL scene layer ============
+   Cars, trails, congestion embers, walkers and signal stop-bars are rendered INSIDE
+   the map's WebGL scene (renderingMode:'3d', shared depth buffer) at true metric scale.
+   Buildings therefore occlude them correctly at any pitch — the v8 "cars on rooftops"
+   artifact is structurally impossible here. Canvas keeps only screen-space UI
+   (fan, labels, annotations, night waves). */
+let GLOK=false;
+const GLS={cells:{},cellN:0,dirty:false,MB:null,MK:1};
+function m4mulT(m,tx,ty,tz){
+  const o=Array.prototype.slice.call(m);
+  o[12]=m[0]*tx+m[4]*ty+m[8]*tz+m[12];
+  o[13]=m[1]*tx+m[5]*ty+m[9]*tz+m[13];
+  o[14]=m[2]*tx+m[6]*ty+m[10]*tz+m[14];
+  o[15]=m[3]*tx+m[7]*ty+m[11]*tz+m[15];
+  return o;
+}
+function glProg(gl,vs,fs){
+  function sh(t,src){const s=gl.createShader(t);gl.shaderSource(s,src);gl.compileShader(s);
+    if(!gl.getShaderParameter(s,gl.COMPILE_STATUS))throw new Error(gl.getShaderInfoLog(s));return s;}
+  const p=gl.createProgram();gl.attachShader(p,sh(gl.VERTEX_SHADER,vs));gl.attachShader(p,sh(gl.FRAGMENT_SHADER,fs));
+  gl.linkProgram(p);if(!gl.getProgramParameter(p,gl.LINK_STATUS))throw new Error(gl.getProgramInfoLog(p));return p;
+}
+const CELL_W=256,CELL_H=128,AT_W=2048,AT_H=2048,AT_COLS=AT_W/CELL_W;
+function atlasCell(key,maker){
+  let c=GLS.cells[key];
+  if(c)return c.ready?c:null;
+  const i=GLS.cellN++;
+  if(i>=AT_COLS*(AT_H/CELL_H)){GLS.cellN--;return null;}
+  const cx=(i%AT_COLS)*CELL_W,cy=((i/AT_COLS)|0)*CELL_H;
+  c={cx,cy,ready:false};GLS.cells[key]=c;
+  maker(GLS.actx,cx,cy,()=>{c.ready=true;GLS.dirty=true;});
+  return c.ready?c:null;
+}
+function glowCell(key,col){
+  return atlasCell(key,(ctx,x,y,done)=>{
+    const g=ctx.createRadialGradient(x+CELL_W/2,y+CELL_H/2,0,x+CELL_W/2,y+CELL_H/2,CELL_H/2-2);
+    g.addColorStop(0,col);g.addColorStop(1,'rgba(0,0,0,0)');
+    ctx.clearRect(x,y,CELL_W,CELL_H);ctx.fillStyle=g;
+    ctx.beginPath();ctx.arc(x+CELL_W/2,y+CELL_H/2,CELL_H/2-1,0,7);ctx.fill();done();
+  });
+}
+function whiteCell(){
+  return atlasCell('white',(ctx,x,y,done)=>{
+    ctx.clearRect(x,y,CELL_W,CELL_H);ctx.fillStyle='#FFFFFF';
+    ctx.beginPath();ctx.roundRect(x+8,y+8,CELL_W-16,CELL_H-16,26);ctx.fill();done();
+  });
+}
+function carCell(col,type){
+  const sp=getSprite(col,type);
+  if(!sp.ready)return null;
+  return atlasCell('c_'+type+'_'+col,(ctx,x,y,done)=>{
+    ctx.clearRect(x,y,CELL_W,CELL_H);
+    ctx.drawImage(sp.img,x+2,y+2,CELL_W-4,CELL_H-4);done();
+  });
+}
+function glInit(gl){
+  GLS.pT=glProg(gl,
+    'attribute vec3 a_pos;attribute vec3 a_uva;uniform mat4 u_m;varying vec3 v_uva;void main(){gl_Position=u_m*vec4(a_pos,1.0);v_uva=a_uva;}',
+    'precision mediump float;varying vec3 v_uva;uniform sampler2D u_t;void main(){gl_FragColor=texture2D(u_t,v_uva.xy)*v_uva.z;}');
+  GLS.pC=glProg(gl,
+    'attribute vec3 a_pos;attribute vec4 a_col;uniform mat4 u_m;varying vec4 v_col;void main(){gl_Position=u_m*vec4(a_pos,1.0);v_col=a_col;}',
+    'precision mediump float;varying vec4 v_col;void main(){gl_FragColor=vec4(v_col.rgb*v_col.a,v_col.a);}');
+  GLS.bT=gl.createBuffer();GLS.bC=gl.createBuffer();
+  GLS.acan=document.createElement('canvas');GLS.acan.width=AT_W;GLS.acan.height=AT_H;
+  GLS.actx=GLS.acan.getContext('2d');
+  GLS.cells={};GLS.cellN=0;
+  GLS.tex=gl.createTexture();
+  gl.bindTexture(gl.TEXTURE_2D,GLS.tex);
+  gl.texParameteri(gl.TEXTURE_2D,gl.TEXTURE_MIN_FILTER,gl.LINEAR);
+  gl.texParameteri(gl.TEXTURE_2D,gl.TEXTURE_MAG_FILTER,gl.LINEAR);
+  gl.texParameteri(gl.TEXTURE_2D,gl.TEXTURE_WRAP_S,gl.CLAMP_TO_EDGE);
+  gl.texParameteri(gl.TEXTURE_2D,gl.TEXTURE_WRAP_T,gl.CLAMP_TO_EDGE);
+  GLS.dirty=true;
+  glowCell('glowN','rgba(255,72,44,0.55)');glowCell('glowD','rgba(96,4,20,0.35)');whiteCell();
+}
+function quadT(arr,cx,cy,z,ang,hl,hw,cell,alpha){
+  const K=GLS.MK,ca=Math.cos(ang),sa=Math.sin(ang);
+  const ex=ca*hl,ey=sa*hl,px2=-sa*hw,py2=ca*hw;
+  const u0=cell.cx/AT_W,v0=cell.cy/AT_H,u1=(cell.cx+CELL_W)/AT_W,v1=(cell.cy+CELL_H)/AT_H;
+  const x1=(cx-ex-px2)*K,y1=(cy-ey-py2)*K,x2=(cx+ex-px2)*K,y2=(cy+ey-py2)*K,
+        x3=(cx+ex+px2)*K,y3=(cy+ey+py2)*K,x4=(cx-ex+px2)*K,y4=(cy-ey+py2)*K,zz=z*K;
+  arr.push(x1,y1,zz,u0,v0,alpha, x2,y2,zz,u1,v0,alpha, x3,y3,zz,u1,v1,alpha,
+           x1,y1,zz,u0,v0,alpha, x3,y3,zz,u1,v1,alpha, x4,y4,zz,u0,v1,alpha);
+}
+function quadC(arr,cx,cy,z,ang,hl,hw,r,g,b,a){
+  const K=GLS.MK,ca=Math.cos(ang),sa=Math.sin(ang);
+  const ex=ca*hl,ey=sa*hl,px2=-sa*hw,py2=ca*hw;
+  const x1=(cx-ex-px2)*K,y1=(cy-ey-py2)*K,x2=(cx+ex-px2)*K,y2=(cy+ey-py2)*K,
+        x3=(cx+ex+px2)*K,y3=(cy+ey+py2)*K,x4=(cx-ex+px2)*K,y4=(cy-ey+py2)*K,zz=z*K;
+  arr.push(x1,y1,zz,r,g,b,a, x2,y2,zz,r,g,b,a, x3,y3,zz,r,g,b,a,
+           x1,y1,zz,r,g,b,a, x3,y3,zz,r,g,b,a, x4,y4,zz,r,g,b,a);
+}
+function ribbon(arr,pts,hw,z,r,g,b,aTail,aHead){
+  const K=GLS.MK,n=pts.length;if(n<2)return;
+  const L2=[],R2=[];
+  for(let i=0;i<n;i++){
+    const p0=pts[Math.max(0,i-1)],p1=pts[Math.min(n-1,i+1)];
+    let dx=p1[0]-p0[0],dy=p1[1]-p0[1];const dl=Math.hypot(dx,dy)||1;dx/=dl;dy/=dl;
+    L2.push([pts[i][0]-dy*hw,pts[i][1]+dx*hw]);R2.push([pts[i][0]+dy*hw,pts[i][1]-dx*hw]);
+  }
+  const zz=z*K;
+  for(let i=0;i<n-1;i++){
+    const a0=aTail+(aHead-aTail)*(i/(n-1)),a1=aTail+(aHead-aTail)*((i+1)/(n-1));
+    const l0=L2[i],r0=R2[i],l1=L2[i+1],r1=R2[i+1];
+    arr.push(l0[0]*K,l0[1]*K,zz,r,g,b,a0, r0[0]*K,r0[1]*K,zz,r,g,b,a0, r1[0]*K,r1[1]*K,zz,r,g,b,a1,
+             l0[0]*K,l0[1]*K,zz,r,g,b,a0, r1[0]*K,r1[1]*K,zz,r,g,b,a1, l1[0]*K,l1[1]*K,zz,r,g,b,a1);
+  }
+}
+function drawArrC(gl,m,arr,additive){
+  if(!arr.length)return;
+  gl.useProgram(GLS.pC);
+  gl.uniformMatrix4fv(gl.getUniformLocation(GLS.pC,'u_m'),false,new Float32Array(m));
+  gl.bindBuffer(gl.ARRAY_BUFFER,GLS.bC);
+  gl.bufferData(gl.ARRAY_BUFFER,new Float32Array(arr),gl.DYNAMIC_DRAW);
+  const ap=gl.getAttribLocation(GLS.pC,'a_pos'),ac=gl.getAttribLocation(GLS.pC,'a_col');
+  gl.enableVertexAttribArray(ap);gl.vertexAttribPointer(ap,3,gl.FLOAT,false,28,0);
+  gl.enableVertexAttribArray(ac);gl.vertexAttribPointer(ac,4,gl.FLOAT,false,28,12);
+  gl.blendFunc(gl.ONE,additive?gl.ONE:gl.ONE_MINUS_SRC_ALPHA);
+  gl.drawArrays(gl.TRIANGLES,0,arr.length/7);
+}
+function drawArrT(gl,m,arr){
+  if(!arr.length)return;
+  gl.useProgram(GLS.pT);
+  gl.uniformMatrix4fv(gl.getUniformLocation(GLS.pT,'u_m'),false,new Float32Array(m));
+  gl.activeTexture(gl.TEXTURE0);
+  gl.bindTexture(gl.TEXTURE_2D,GLS.tex);
+  if(GLS.dirty){
+    gl.pixelStorei(gl.UNPACK_PREMULTIPLY_ALPHA_WEBGL,true);
+    gl.texImage2D(gl.TEXTURE_2D,0,gl.RGBA,gl.RGBA,gl.UNSIGNED_BYTE,GLS.acan);
+    gl.pixelStorei(gl.UNPACK_PREMULTIPLY_ALPHA_WEBGL,false);
+    GLS.dirty=false;
+  }
+  gl.uniform1i(gl.getUniformLocation(GLS.pT,'u_t'),0);
+  gl.bindBuffer(gl.ARRAY_BUFFER,GLS.bT);
+  gl.bufferData(gl.ARRAY_BUFFER,new Float32Array(arr),gl.DYNAMIC_DRAW);
+  const ap=gl.getAttribLocation(GLS.pT,'a_pos'),au=gl.getAttribLocation(GLS.pT,'a_uva');
+  gl.enableVertexAttribArray(ap);gl.vertexAttribPointer(ap,3,gl.FLOAT,false,24,0);
+  gl.enableVertexAttribArray(au);gl.vertexAttribPointer(au,3,gl.FLOAT,false,24,12);
+  gl.blendFunc(gl.ONE,gl.ONE_MINUS_SRC_ALPHA);
+  gl.drawArrays(gl.TRIANGLES,0,arr.length/6);
+}
+function glDraw(gl,matrix){
+  if(!GLS.MB){
+    const ll=toLL(0,0);
+    GLS.MB=maplibregl.MercatorCoordinate.fromLngLat({lng:ll[0],lat:ll[1]});
+    GLS.MK=GLS.MB.meterInMercatorCoordinateUnits();
+  }
+  const night=nightF>0.5;
+  const m=m4mulT(matrix,GLS.MB.x,GLS.MB.y,0);
+  const Cbars=[],Tglow=[],Ctrail=[],Tcars=[],Ctop=[];
+  const pxm=Math.max(SCL,0.001); // px per meter
+  // --- signal stop-bars: lights NEVER disappear ---
+  for(const sg of SIGS){
+    if(!sg.att)continue;
+    for(const at of sg.att){
+      const g=phaseGreen(sg,at.ph,simT);
+      const s2=Math.min(Math.max(at.s,2),at.r.len-2);
+      const [x,y]=posAt(at.r,s2);
+      const hw=Math.max(0.42,1.5/pxm/2);
+      if(g)quadC(Cbars,x,y,0.25,at.ang+Math.PI/2,at.r.w*0.5+0.5,hw,0.13,0.83,0.42,night?0.55:0.42);
+      else quadC(Cbars,x,y,0.25,at.ang+Math.PI/2,at.r.w*0.5+0.5,hw,0.92,0.25,0.22,night?0.6:0.48);
+    }
+  }
+  // --- congestion embers (true meters, capped) ---
+  const gcell=night?GLS.cells['glowN']:GLS.cells['glowD'];
+  if(gcell&&gcell.ready){
+    const now2=performance.now();
+    for(const c of cars){
+      if(c.jamT<2)continue;
+      const [x,y]=c.world();
+      let R=6+Math.min(c.jamT,22)*0.7;
+      R=Math.max(R,14/pxm);R=Math.min(R,26);
+      const pulse=0.8+0.2*Math.sin(now2/640+c.id*1.7);
+      quadT(Tglow,x,y,0.35,0,R,R,gcell,Math.min(0.75,0.16+c.jamT*0.028)*pulse);
+    }
+  }
+  // --- light trails: ribbons in true meters ---
+  const HL=N>4000?7:N>1500?12:22;
+  const wTr=Math.max(night?0.9:0.7,(night?1.5:1.1)/pxm);
+  for(const c of cars){
+    if(c.tr.length<2)continue;
+    if(N>2000&&pxm<0.6&&!c.ai)continue;
+    const [hx,hy]=c.world();
+    const st=Math.max(0,c.tr.length-HL);
+    const pts=c.tr.slice(st);pts.push([hx,hy]);
+    let r,g,b;
+    if(c.ai){if(night){r=0.31;g=1.0;b=0.59;}else{r=0.06;g=0.66;b=0.35;}}
+    else{if(night){r=1.0;g=0.76;b=0.45;}else{r=0.17;g=0.17;b=0.16;}}
+    ribbon(Ctrail,pts,wTr,0.45,r,g,b,0,night?0.55:0.3);
+  }
+  // --- walkers ---
+  {
+    const hwW=Math.max(0.3,1.3/pxm/2);
+    for(const w of walkers){
+      if(night)quadC(Ctop,w.x,w.y,0.5,0,hwW,hwW,0.86,0.86,0.92,0.9);
+      else quadC(Ctop,w.x,w.y,0.5,0,hwW,hwW,0.16,0.16,0.15,0.85);
+    }
+  }
+  // --- cars: true size (min apparent 4.5px), correct depth ---
+  const WRATIO={car:48/96,taxi:48/96,truck:48/150,bus:48/188};
+  for(const c of cars){
+    const [x,y]=c.world();
+    const ang=c.dispA===null?0:c.dispA;
+    let bodyCol=c.ai?'#17C964':c.col;
+    if(c.learned&&night)bodyCol='#5CFF9E';
+    const cell=carCell(bodyCol,c.type);
+    const mult=Math.max(1,4.5/(c.L*pxm));
+    const hl=c.L*0.5*0.94*mult,hw=c.L*WRATIO[c.type]*0.5*0.94*mult;
+    if(c===focusCar&&(mode==='frame'||mode==='second'||fanDive)){
+      quadC(Ctrail,x,y,0.5,ang,hl+1.1,hw+1.1,0.24,1.0,0.56,0.30);
+    }
+    if(cell){
+      quadT(Tcars,x,y,0.6,ang,hl,hw,cell,1);
+      if(c.flash>0){const wc=GLS.cells['white'];if(wc&&wc.ready)quadT(Tcars,x,y,0.62,ang,hl,hw,wc,Math.min(1,c.flash)*0.7);}
+    } else {
+      quadC(Tglow.length?Ctop:Ctop,x,y,0.6,ang,hl,hw,0.2,0.2,0.2,0.9);
+    }
+    if(c.ai)quadC(Ctop,x,y,0.72,ang,hl*0.16,hw*0.42,1,1,1,0.85);
+    if(c.v<0.4){
+      const ca=Math.cos(ang),sa=Math.sin(ang);
+      const bx=x-ca*hl*0.96,by=y-sa*hl*0.96;
+      const off=hw*0.62,pxo=-sa*off,pyo=ca*off;
+      const bs=Math.max(0.16,hw*0.16);
+      quadC(Ctop,bx+pxo,by+pyo,0.7,ang,bs,bs,1,0.32,0.3,0.95);
+      quadC(Ctop,bx-pxo,by-pyo,0.7,ang,bs,bs,1,0.32,0.3,0.95);
+    }
+  }
+  window.__GLDBG={glok:GLOK,cells:GLS.cellN,tcars:Tcars.length/6,ctrail:Ctrail.length/7,cbars:Cbars.length/7,tglow:Tglow.length/6,ctop:Ctop.length/7,mk:GLS.MK};
+  gl.disable(gl.CULL_FACE);
+  gl.enable(gl.DEPTH_TEST);gl.depthFunc(gl.LEQUAL);gl.depthMask(false);
+  gl.enable(gl.BLEND);
+  drawArrC(gl,m,Cbars,false);
+  drawArrT(gl,m,Tglow);
+  drawArrC(gl,m,Ctrail,night);
+  drawArrT(gl,m,Tcars);
+  drawArrC(gl,m,Ctop,false);
+}
+const simLayer={id:'sim-gl',type:'custom',renderingMode:'3d',
+  onAdd(m2,gl){try{glInit(gl);GLOK=true;}catch(e){GLOK=false;console.error('sim-gl init',e);}},
+  render(gl,matrix){if(!GLOK)return;try{glDraw(gl,matrix);}catch(e){GLOK=false;console.error('sim-gl draw',e);}}};
+window.__SIMLAYER=simLayer;
 /* ============ flow trails & congestion stains (v8) ============ */
 const GLOW={};
 function glowSprite(col){
@@ -808,10 +1054,7 @@ function glowSprite(col){
   g.fillStyle=rg;g.beginPath();g.arc(32,32,30,0,7);g.fill();
   GLOW[col]=s;return s;
 }
-function drawFlowLayer(now,dt){
-  const night=nightF>0.5;
-  const HL=N>4000?7:N>1500?12:22;
-  // sample world-space history (stable under any camera motion)
+function sampleTrails(dt){
   for(const c of cars){
     c.trT+=dt;
     if(c.trT>0.13){
@@ -824,6 +1067,10 @@ function drawFlowLayer(now,dt){
       }
     }
   }
+}
+function drawFlowLayer(now,dt){
+  const night=nightF>0.5;
+  const HL=N>4000?7:N>1500?12:22;
   // congestion stains — jam (stopped, no signal cause) pools like a clot
   const ember=night?'rgba(255,72,44,0.22)':'rgba(96,4,20,0.085)';
   const sp2=glowSprite(ember);
@@ -848,8 +1095,8 @@ function drawFlowLayer(now,dt){
     const [hx,hy]=c.world();
     const [HX,HY]=W2S(hx,hy);
     if(HX<-90||HX>VW+90||HY<-90||HY>VH+90)continue;
-    const colA=night?(c.ai?'rgba(226,53,88,':'rgba(255,193,116,')
-                    :(c.ai?'rgba(173,0,45,':'rgba(44,44,40,');
+    const colA=night?(c.ai?'rgba(80,255,150,':'rgba(255,193,116,')
+                    :(c.ai?'rgba(15,169,88,':'rgba(44,44,40,');
     const st=Math.max(0,c.tr.length-HL);
     const path=[];
     for(let i=st;i<c.tr.length;i++)path.push(W2S(c.tr[i][0],c.tr[i][1]));
@@ -868,6 +1115,7 @@ function drawFlowLayer(now,dt){
 }
 /* ============ chapters ============ */
 let mode='city',focusCar=null,secondPt=null,fanCache=null,restoreAI=null;
+let bldF=1,bldT=1,bldApplied=1; // building height factor: the city kneels for street-level chapters
 let nightEvent=null,nightArmed=false,nightEnterW=0,seenMem=new Map();
 let hazard=null,hazardPass=0,humanHB=[];
 const chlab=document.getElementById('chlab'),chsub=document.getElementById('chsub'),modehud=document.getElementById('modehud');
@@ -893,7 +1141,8 @@ function setMode(m,car){
   document.getElementById('ctl').style.opacity=(m==='second'||m==='frame')?'0.25':'1';
   setNight(m==='night');
   simSpeedT=(m==='second')?0.055:1;
-  if(m==='city')tweenCam(16.9,-20,-40,1600,52,-18);
+  bldT=(m==='second'||m==='frame')?0.12:1;
+  if(m==='city')tweenCam(16.7,-20,-40,1600,42,-18);
   if(m==='second'){
     let best=null,bn=-1;
     for(const sg of SIGS){
@@ -908,14 +1157,14 @@ function setMode(m,car){
     if(!bc){for(const c of cars){const [x,y]=c.world();const d=Math.hypot(x-best.x,y-best.y);
       if(d<90&&d<bd){bd=d;bc=c;}}if(bc&&!bc.ai){bc.ai=true;restoreAI=bc;}}
     focusCar=bc;
-    tweenCam(18.8,best.x,best.y,1900,58,24);
+    tweenCam(18.5,best.x,best.y,1900,50,24);
   }
   if(m==='frame'){
     focusCar=car||cars.filter(c=>c.ai&&c.v>2)[0]||cars[0];
     if(!focusCar.ai){focusCar.ai=true;restoreAI=focusCar;}
     seenMem.clear();
     const [x,y]=focusCar.world();
-    tweenCam(20.2,x,y,1900,72,0);
+    tweenCam(19.3,x,y,1900,58,0);
   }
   if(m==='night'){
     nightEvent=null;nightArmed=true;nightEnterW=performance.now();
@@ -986,32 +1235,33 @@ function divePhases(){
      if(!diveCar)diveCar=cars[0];
      if(!diveCar.ai){diveCar.ai=true;if(!restoreAI)restoreAI=diveCar;}
      focusCar=diveCar;
-     diveCam({x:divePt.x,y:divePt.y,z:18.8,pi:58,br:26,d:9600},dive.seek);
+     diveCam({x:divePt.x,y:divePt.y,z:18.3,pi:44,br:26,d:9600},dive.seek);
+     bldT=0.12;
      simSpeedT=0.4;
      cine('ONE FRAME',
-       J?'この街に、AIを1台だけ。':'Now, a single AI.',
-       J?'カメラのみ · LiDARゼロ · 20億パラメータVLA · 視界は実在の建物1,096棟に遮られる'
-        :'Cameras only · zero LiDAR · a 2B-parameter VLA · occluded by 1,096 real buildings');}},
+       J?'この街に、Turing Pilotを1台だけ。':'Now, one car runs Turing Pilot.',
+       J?'カメラベースのE2E自動運転 — 知覚から操作まで、ひとつのAI · 視界は実在の建物1,096棟に遮られる'
+        :'Camera-based end-to-end driving — one AI from perception to control · occluded by 1,096 real buildings');}},
   {t:19,id:'anatomy',
    go(){
      fanDive=true;simSpeedT=0.03;fanCache=null;
      const p2=diveCar?diveCar.world():[divePt.x,divePt.y];
-     diveCam({x:p2[0],y:p2[1],z:19.1,pi:55,br:map.getBearing()+74,d:13400},dive.seek);
+     diveCam({x:p2[0],y:p2[1],z:18.7,pi:37,br:map.getBearing()+74,d:13400},dive.seek);
      cine('ONE SECOND',
        J?'1秒を、解剖する。':'Dissecting one second.',
-       J?'<b>34</b>本の候補未来を<b>0.38</b>秒ごとに再評価 — 灰は棄却、赤が選択。実車はこれを毎秒10回'
-        :'<b>34</b> candidate futures, re-planned every <b>0.38</b> s — grey rejected, crimson chosen. The real car does this 10× a second');}},
+       J?'<b>34</b>本の候補未来を<b>0.38</b>秒ごとに再評価 — 灰は棄却、緑が選択。Turing PilotのE2Eは、これを絶え間なく'
+        :'<b>34</b> candidate futures, re-planned every <b>0.38</b> s — grey rejected, green chosen. Turing Pilot’s E2E never stops doing this');}},
   {t:33,id:'resume',
    go(){
-     fanDive=false;simSpeedT=1;
-     diveCam({x:-20,y:-40,z:16.35,pi:52,br:-18,d:6800},dive.seek);
+     fanDive=false;simSpeedT=1;bldT=1;
+     diveCam({x:-20,y:-40,z:16.35,pi:44,br:-18,d:6800},dive.seek);
      cine('LIVE',
        J?'これは動画ではありません。':'This is not a video.',
        J?'地図を掴んでみてください — 全フレームが、いまこの場で計算されています'
         :'Grab the map — every frame is being computed right here, right now');}},
   {t:40,id:'dissolve',
    go(){
-     diveCam({x:-20,y:-40,z:15.95,pi:47,br:-6,d:15500},dive.seek);
+     diveCam({x:-20,y:-40,z:15.95,pi:40,br:-6,d:15500},dive.seek);
      cine('ONE CITY',
        J?'AIの割合を、100%へ。':'Take the fleet to 100%.',
        'AI <b>0%</b>');},
@@ -1023,9 +1273,9 @@ function divePhases(){
      } else if(!dive.sigDone){
        dive.sigDone=true;
        cine('ONE CITY',
-         LANG==='ja'?'信号が、消えた。':'The lights are gone.',
-         LANG==='ja'?'予約制交差点 AIM（Dresner &amp; Stone 2008） · 渋滞の鬱血が溶けていく — 平均速度 <b id="cineV">—</b> km/h'
-          :'Reservation intersections — AIM (Dresner &amp; Stone 2008) · watch the clots dissolve — avg <b id="cineV">—</b> km/h');
+         LANG==='ja'?'信号は、残る。<br>“止まる”が、消えた。':'The lights stay.<br>Stopping is gone.',
+         LANG==='ja'?'AIは青に合わせて滑走する（GLOSA） · 歩行者は渡り続ける · 渋滞の鬱血が溶けていく — 平均速度 <b id="cineV">—</b> km/h'
+          :'The AI glides to arrive on green (GLOSA) · pedestrians keep crossing · the clots dissolve — avg <b id="cineV">—</b> km/h');
      }
      const v=document.getElementById('cineV');
      if(v&&dispAvg)v.textContent=dispAvg.toFixed(1);}},
@@ -1057,6 +1307,7 @@ function startDive(seekT){
 function endDive(){
   if(!dive)return;
   dive=null;fanDive=false;diveHold=false;
+  bldT=(mode==='second'||mode==='frame')?0.12:1;
   document.body.classList.remove('dive');
   document.getElementById('cineBox').classList.remove('show');
   applyShareUI(aiShare);
@@ -1122,7 +1373,7 @@ function computeFan(c){
   }
   let sigAt=-1,sigGreen=true;
   for(const sg of c.r.sigs[c.dir]){
-    if(sg.s>c.s&&sg.s<c.s+120){sigAt=(sg.s-c.s)/2|0;sigGreen=aiShare>=100?true:phaseGreen(sg.sg,sg.ph,simT);break;}
+    if(sg.s>c.s&&sg.s<c.s+120){sigAt=(sg.s-c.s)/2|0;sigGreen=phaseGreen(sg.sg,sg.ph,simT);break;}
   }
   const cands=[];const NA=34;
   for(let k=0;k<NA;k++){
@@ -1146,9 +1397,17 @@ let hoverCar=null;
 function drawSim(now,dt){
   sx.setTransform(DPR,0,0,DPR,0,0);
   sx.clearRect(0,0,VW,VH);
-  drawFlowLayer(now,dt);
-  const sigAlpha=Math.max(0,1-aiShare/100*1.15);
-  for(const sg of SIGS){
+  sampleTrails(dt);
+  for(const c of cars){
+    const angT=c.world()[2];
+    if(c.dispA===null)c.dispA=angT;
+    let da2=angT-c.dispA;while(da2>Math.PI)da2-=2*Math.PI;while(da2<-Math.PI)da2+=2*Math.PI;
+    c.dispA+=da2*Math.min(1,dt*7);
+    c.dispLane+=(c.lane-c.dispLane)*Math.min(1,dt*4);
+  }
+  if(!GLOK)drawFlowLayer(now,dt);
+  const sigAlpha=GLOK?0:1;
+  if(!GLOK)for(const sg of SIGS){
     const [X,Y]=W2S(sg.x,sg.y);
     if(X<-10||X>VW+10||Y<-10||Y>VH+10)continue;
     sx.globalAlpha=sigAlpha;
@@ -1193,10 +1452,10 @@ function drawSim(now,dt){
         const chosen=q.score===bestScore;
         if(!chosen&&q.endIdx<2)continue;
         const boost=fanDive?1:0;
-        sx.strokeStyle=chosen?(nightF>0.5?'#FF3060':'#AD002D')
+        sx.strokeStyle=chosen?(nightF>0.5?'#3CFF8F':'#0FA958')
           :(nightF>0.5?'rgba(205,215,240,'+(boost?'0.22':'0.10')+')':'rgba(28,28,26,'+(boost?'0.22':'0.10')+')');
         sx.lineWidth=chosen?(boost?3.4:2.4):(boost?1.5:1);
-        if(chosen&&nightF>0.5){sx.shadowColor='rgba(255,45,85,.85)';sx.shadowBlur=boost?16:0;}
+        if(chosen&&nightF>0.5){sx.shadowColor='rgba(60,255,143,.8)';sx.shadowBlur=boost?16:0;}
         sx.beginPath();
         const spread=chosen?0:(q.a+1)*0.5;
         const lastI=chosen?Math.max(q.endIdx,8):q.endIdx;
@@ -1210,7 +1469,7 @@ function drawSim(now,dt){
         sx.shadowBlur=0;
         if(chosen){
           const p=pts[Math.min(q.endIdx,pts.length-1)];const [X,Y]=W2S(p[0],p[1]);
-          sx.beginPath();sx.arc(X,Y,4.5,0,7);sx.fillStyle='#AD002D';sx.fill();
+          sx.beginPath();sx.arc(X,Y,4.5,0,7);sx.fillStyle='#0FA958';sx.fill();
           sx.font='700 9px JetBrains Mono,monospace';sx.fillStyle=C('label');sx.textAlign='left';
           sx.fillText(LANG==='ja'?' 3.0秒後の位置':' position at T+3.0s',X+6,Y+3);
         }
@@ -1231,8 +1490,8 @@ function drawSim(now,dt){
       sx.setLineDash([]);
     }
     if(mode==='second')modehud.innerHTML=(LANG==='ja'
-      ?'時間 <b>×'+simSpeed.toFixed(2)+'</b> ・ 候補未来 <b>34</b>本 / 0.38s毎に再評価 ・ Turing実車は<b>10Hz</b>で同じことを行う<br><span style="font-size:9.5px;opacity:.7">灰=棄却された未来 ・ 赤=選択 ・ ESCで街へ</span>'
-      :'time <b>×'+simSpeed.toFixed(2)+'</b> · <b>34</b> candidate futures re-planned every 0.38s · Turing’s real car does this at <b>10 Hz</b><br><span style="font-size:9.5px;opacity:.7">grey = rejected · crimson = chosen · ESC to city</span>');
+      ?'時間 <b>×'+simSpeed.toFixed(2)+'</b> ・ 候補未来 <b>34</b>本 / 0.38s毎に再評価 ・ Turing PilotのE2Eはこれを絶え間なく行う<br><span style="font-size:9.5px;opacity:.7">灰=棄却された未来 ・ 緑=選択 ・ ESCで街へ</span>'
+      :'time <b>×'+simSpeed.toFixed(2)+'</b> · <b>34</b> candidate futures re-planned every 0.38s · Turing Pilot’s E2E never stops doing this<br><span style="font-size:9.5px;opacity:.7">grey = rejected · green = chosen · ESC to city</span>');
   }
   }
   if(mode==='frame'&&focusCar){
@@ -1257,7 +1516,7 @@ function drawSim(now,dt){
       }
       if(hitCar)visible.add(hitCar);
       const [X0,Y0]=W2S(fx,fy),[X1,Y1]=W2S(fx+Math.cos(ang)*d,fy+Math.sin(ang)*d);
-      sx.strokeStyle=nightF>0.5?'rgba(226,53,88,.14)':'rgba(173,0,45,.11)';
+      sx.strokeStyle=nightF>0.5?'rgba(60,255,143,.14)':'rgba(15,169,88,.12)';
       sx.beginPath();sx.moveTo(X0,Y0);sx.lineTo(X1,Y1);sx.stroke();
     }
     // camera ring (multi-camera, no lidar)
@@ -1266,7 +1525,7 @@ function drawSim(now,dt){
     for(let k2=0;k2<8;k2++){
       sx.beginPath();
       sx.arc(CX,CY,rr0,fa+k2*Math.PI/4+0.06,fa+(k2+1)*Math.PI/4-0.06);
-      sx.strokeStyle=nightF>0.5?'rgba(226,53,88,.7)':'rgba(173,0,45,.6)';
+      sx.strokeStyle=nightF>0.5?'rgba(60,255,143,.7)':'rgba(15,169,88,.6)';
       sx.lineWidth=2;sx.stroke();
     }
     for(const R2 of [10,25,50]){
@@ -1302,8 +1561,8 @@ function drawSim(now,dt){
       sx.globalAlpha=1;
     }
     modehud.innerHTML=(LANG==='ja'
-      ?'<b>8</b>× CAMERA ・ <b>0</b>× LIDAR ・ 視野内 <b>'+visible.size+'</b>台 ・ 記憶 <b>'+[...seenMem.keys()].filter(o=>!visible.has(o)).length+'</b>台 ・ '+(focusCar.v*3.6).toFixed(1)+' km/h<br><span style="font-size:9.5px;opacity:.7">全周レイは実在の建物で遮蔽 ・ Turingの実車=カメラのみ・20億パラメータVLA・10Hz推論 ・ ESCで街へ</span>'
-      :'<b>8</b>× CAMERA · <b>0</b>× LIDAR · <b>'+visible.size+'</b> in view · <b>'+[...seenMem.keys()].filter(o=>!visible.has(o)).length+'</b> in memory · '+(focusCar.v*3.6).toFixed(1)+' km/h<br><span style="font-size:9.5px;opacity:.7">occluded by 1,096 real buildings · real Turing: cameras-only, 2B-param VLA @10 Hz · ESC to city</span>');
+      ?'CAMERA-BASED E2E ・ 視野内 <b>'+visible.size+'</b>台 ・ 記憶 <b>'+[...seenMem.keys()].filter(o=>!visible.has(o)).length+'</b>台 ・ '+(focusCar.v*3.6).toFixed(1)+' km/h<br><span style="font-size:9.5px;opacity:.7">全周レイは実在の建物で遮蔽 ・ Turing Pilot=カメラベース・LiDAR非依存のE2E自動運転 ・ ESCで街へ</span>'
+      :'CAMERA-BASED E2E · <b>'+visible.size+'</b> in view · <b>'+[...seenMem.keys()].filter(o=>!visible.has(o)).length+'</b> in memory · '+(focusCar.v*3.6).toFixed(1)+' km/h<br><span style="font-size:9.5px;opacity:.7">occluded by 1,096 real buildings · Turing Pilot: camera-based, LiDAR-independent E2E · ESC to city</span>');
   }
   if(mode==='night'){
     const learned=cars.filter(c=>c.learned).length;
@@ -1313,7 +1572,7 @@ function drawSim(now,dt){
       :(nightEvent?'<b>near-miss detected</b> — broadcasting the experience':'watching live TTC — the moment one car truly flinches, a wave will run')+' · received <b>'+learned+'</b>/'+cars.filter(c=>c.ai).length+' · hard-brakes/min human <b>'+rH+'</b> : AI <b>'+rA+'</b><br><span style="font-size:9.5px;opacity:.7">Stern et al. 2018: &lt;5% AVs dissolve stop-and-go waves, −40% fuel · ESC to city</span>');
   }
   // pedestrians
-  if(walkers.length){
+  if(!GLOK&&walkers.length){
     for(const w of walkers){
       const [X,Y]=W2S(w.x,w.y);
       if(X<-8||X>VW+8||Y<-8||Y>VH+8)continue;
@@ -1321,8 +1580,8 @@ function drawSim(now,dt){
       sx.fillStyle=nightF>0.5?'#C9C9D4':'#3A3A38';sx.fill();
     }
   }
-  // cars
-  for(const r of roads){
+  // cars (canvas fallback only — GL path renders them depth-correct inside the map)
+  if(!GLOK)for(const r of roads){
     for(const dir of [0,1]){
       for(const c of r.cars[dir]){
         const [X0,Y0,angT]=c.world();
@@ -1333,15 +1592,11 @@ function drawSim(now,dt){
           sx.fillRect(Xs-1.4,Ys-1.4,2.8,2.8);
           continue;
         }
-        if(c.dispA===null)c.dispA=angT;
-        let da=angT-c.dispA;while(da>Math.PI)da-=2*Math.PI;while(da<-Math.PI)da+=2*Math.PI;
-        c.dispA+=da*Math.min(1,dt*7);
-        c.dispLane+=(c.lane-c.dispLane)*Math.min(1,dt*4);
-        const ang=scrAng(X0,Y0,c.dispA);
+        const ang=scrAng(X0,Y0,c.dispA===null?angT:c.dispA);
         sx.save();sx.translate(Xs,Ys);sx.rotate(ang);
         const L=Math.max(5.2,c.L*SCL*1.15),Wd=L*(48/({car:96,taxi:96,truck:150,bus:188}[c.type]));
-        let bodyCol=c.ai?'#AD002D':c.col;
-        if(c.learned&&nightF>0.5)bodyCol='#E23558';
+        let bodyCol=c.ai?'#17C964':c.col;
+        if(c.learned&&nightF>0.5)bodyCol='#5CFF9E';
         const sp=getSprite(bodyCol,c.type);
         if(c===focusCar&&(mode==='frame'||mode==='second')){
           sx.strokeStyle=C('ai');sx.lineWidth=1.5;
@@ -1556,7 +1811,7 @@ document.getElementById('cardBtn').addEventListener('click',()=>{
   c2.fillStyle='#1C1C1A';c2.font='700 44px DM Sans, sans-serif';
   c2.fillText('TOKYO FLOW',64,110);
   c2.fillStyle='#AD002D';c2.fillRect(64,130,60,5);
-  c2.font='700 90px JetBrains Mono, monospace';c2.fillStyle='#AD002D';
+  c2.font='700 90px JetBrains Mono, monospace';c2.fillStyle='#0FA958';
   c2.fillText(aiShare+'%',64,270);
   c2.font='500 22px sans-serif';c2.fillStyle='#5A5955';
   c2.fillText(LANG==='ja'?'自律走行の割合':'autonomous share',64,305);
@@ -1565,7 +1820,7 @@ document.getElementById('cardBtn').addEventListener('click',()=>{
   c2.font='500 20px sans-serif';c2.fillStyle='#5A5955';
   c2.fillText(LANG==='ja'?'渋谷の平均速度（実物理シミュレーション）':'avg speed, real-physics Shibuya',64,432);
   c2.font='500 18px JetBrains Mono, monospace';c2.fillStyle='#8B8A84';
-  c2.fillText(aiShare>=100?(LANG==='ja'?'信号なし・予約制交差点で走行中':'running signal-free (AIM)'):'',64,480);
+  c2.fillText(aiShare>=100?(LANG==='ja'?'信号はそのまま・“停止”だけが消えた':'lights intact — stopping eliminated'):'',64,480);
   c2.fillText('© OpenStreetMap contributors · TURING',64,580);
   const a=document.createElement('a');
   a.href=cc.toDataURL('image/png');a.download='tokyo-flow-card.png';a.click();
@@ -1580,7 +1835,7 @@ function logExperiment(){
   if(expRows.length>5)expRows.shift();
   const t=document.querySelector('#exp table');
   t.innerHTML='<tr class="h"><td>AI%</td><td>km/h</td><td>jam%</td><td>km/min</td></tr>'+
-    expRows.map(r=>'<tr><td style="color:#AD002D;font-weight:700">'+r[0]+'</td><td>'+r[1]+'</td><td>'+r[2]+'</td><td>'+r[3]+'</td></tr>').join('');
+    expRows.map(r=>'<tr><td style="color:#0FA958;font-weight:700">'+r[0]+'</td><td>'+r[1]+'</td><td>'+r[2]+'</td><td>'+r[3]+'</td></tr>').join('');
   document.getElementById('expWrap').style.display='block';
 }
 setInterval(()=>{if(performance.now()-baseT>14000&&baseT>0){logExperiment();baseT=0;}},1000);
@@ -1602,7 +1857,19 @@ function loop(now){
     document.getElementById('sbar').style.width=(meters*SCL)+'px';
     document.getElementById('smeter').textContent=meters+' m';
   }
-  if(LOOPN%30===0&&map.isStyleLoaded&&map.isStyleLoaded()&&!map.getLayer('sim-road-fill')){try{addOwnLayers();}catch(e){}}
+  if(LOOPN%30===0&&map.isStyleLoaded&&map.isStyleLoaded()){
+    if(!map.getLayer('sim-road-fill')){try{addOwnLayers();}catch(e){}}
+    else if(window.__SIMLAYER&&!map.getLayer('sim-gl')){try{map.addLayer(window.__SIMLAYER);}catch(e){}}
+  }
+  {
+    bldF+=(bldT-bldF)*Math.min(1,dt*2.4);
+    if(Math.abs(bldF-bldApplied)>0.012&&map.getLayer&&map.getLayer('sim-bld-3d')){
+      try{
+        map.setPaintProperty('sim-bld-3d','fill-extrusion-height',['*',Math.max(0.07,bldF),['get','h']]);
+        bldApplied=bldF;
+      }catch(e){}
+    }
+  }
   nightF+=(nightT-nightF)*Math.min(1,dt*2.2);
   document.body.classList.toggle('night',nightF>0.5);
   document.getElementById('lgH').style.background=C('label');
@@ -1611,8 +1878,8 @@ function loop(now){
   let guard=0;
   while(acc>0.025&&guard<8){step(0.025);acc-=0.025;guard++;}
   if(guard>=8)acc=0;
-  // pedestrians: spawn while cars' NS phase red (they cross that road), only in signal mode
-  if(aiShare<100){
+  // pedestrians: always present — this is a city, not a test track. They cross while the car phase is red.
+  {
     for(const sg of SIGS){
       if(!sg.att)continue;
       if(walkers.length>240)break;
